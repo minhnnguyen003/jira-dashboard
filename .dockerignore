@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.planning
+.kilo
+.env.*.example
+*.md
+README.md
+.vscode
+.idea
+docker-compose.yml
+Dockerfile
+.dockerignore
+*.log
+npm-debug.log*
+Docker/
