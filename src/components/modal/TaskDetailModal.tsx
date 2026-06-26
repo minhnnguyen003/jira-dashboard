@@ -355,6 +355,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
   const [transitionFieldsData, setTransitionFieldsData] = useState<Record<string, JiraTransitionField>>({});
   const [fieldValues, setFieldValues] = useState<Record<string, string | null>>({});
   const transitionMenuRef = useRef<HTMLDivElement>(null);
+  const transitionRequestIdRef = useRef(0);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -367,30 +368,58 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
   }, []);
 
   const fetchTransitions = useCallback(async (issueKey: string) => {
+    const requestId = ++transitionRequestIdRef.current;
+    setShowTransitionMenu(false);
+    setTransitions([]);
     setTransitionLoading(true);
     setTransitionError(null);
+    setSelectedTransition(null);
+    setTransitionFieldsData({});
+    setFieldValues({});
     try {
       const res = await fetch(`/api/jira/transitions?key=${encodeURIComponent(issueKey)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Failed to fetch transitions (${res.status})`);
+      }
+
       const data = await res.json();
+      if (transitionRequestIdRef.current !== requestId) {
+        return;
+      }
+
       if (data.transitions) {
         setTransitions(data.transitions);
+      } else {
+        setTransitions([]);
       }
     } catch (err) {
-      setTransitionError(err instanceof Error ? err.message : 'Failed to fetch transitions');
+      if (transitionRequestIdRef.current === requestId) {
+        setTransitionError(err instanceof Error ? err.message : 'Failed to fetch transitions');
+        setTransitions([]);
+      }
     } finally {
-      setTransitionLoading(false);
+      if (transitionRequestIdRef.current === requestId) {
+        setTransitionLoading(false);
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    if (!issue) return;
+    fetchTransitions(issue.key);
+  }, [issue, fetchTransitions]);
+
+  useEffect(() => {
+    return () => {
+      transitionRequestIdRef.current += 1;
+    };
   }, []);
 
   const handleStatusArrowClick = useCallback(async () => {
     if (!issue) return;
-    setShowTransitionMenu((prev) => {
-      if (!prev) {
-        fetchTransitions(issue.key);
-      }
-      return !prev;
-    });
-  }, [issue, issue?.key, fetchTransitions]);
+    setShowTransitionMenu((prev) => !prev);
+  }, [issue]);
 
   const handleTransitionSelect = useCallback((transition: JiraTransition) => {
     if (!issue) return;
