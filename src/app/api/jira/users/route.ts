@@ -59,9 +59,18 @@ export async function GET(request: NextRequest) {
       headers: getAuthHeaders(),
     });
 
-    const users = (response.data as Array<{ name: string; displayName: string }>).map((u) => ({
-      name: u.name,
-      displayName: u.displayName,
+    const users = (
+      response.data as Array<{
+        name?: string;
+        displayName?: string;
+        emailAddress?: string;
+        avatarUrls?: Record<string, string>;
+      }>
+    ).map((u) => ({
+      name: u.name || '',
+      displayName: u.displayName || u.name || '',
+      email: u.emailAddress || u.name || '',
+      avatarUrl: u.avatarUrls?.['48x48'] || '',
     }));
 
     return NextResponse.json(users);
