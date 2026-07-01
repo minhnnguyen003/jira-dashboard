@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n';
 import CreateTaskModal from '@/components/modal/CreateTaskModal';
+import UserBar from '@/components/layout/UserBar';
+import LogoutOverlay from '@/components/layout/LogoutOverlay';
 
 interface SubMenuItem {
   href: string;
@@ -125,6 +127,7 @@ export default function Sidebar() {
   const [isDarkSet, setIsDarkSet] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pathname = usePathname();
   const { language, toggleLanguage, t } = useLanguage();
 
@@ -202,6 +205,7 @@ export default function Sidebar() {
   return (
     <>
     {showCreateModal && <CreateTaskModal onClose={() => setShowCreateModal(false)} />}
+    {loggingOut && <LogoutOverlay />}
     <aside
       className="flex flex-col fixed top-0 left-0 h-screen z-50 transition-all duration-200"
       style={{
@@ -288,6 +292,7 @@ export default function Sidebar() {
           </button>
         </div>
       </div>
+      <UserBar collapsed={collapsed} onLogout={() => setLoggingOut(true)} />
       <nav className="flex-1 py-3 px-2">
         <ul className="space-y-1">
           {menuItems.map((item) => {
