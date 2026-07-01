@@ -120,9 +120,11 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
             top: '100%',
             left: 8,
             ...(collapsed ? { width: 180 } : { right: 8 }),
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            background: 'var(--bg)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid var(--border-hover)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
           }}
         >
           <button
