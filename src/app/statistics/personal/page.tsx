@@ -262,7 +262,7 @@ export default function PersonalStatisticsPage() {
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
-            {[-2, -1, 0, 1].map((offset) => {
+            {[-2, -1, 0, 1, 2].map((offset) => {
               const y = new Date().getFullYear() + offset;
               return <option key={y} value={y}>{y}</option>;
             })}
