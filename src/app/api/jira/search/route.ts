@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchJiraByJQL, mapIssuesToDashboard, aggregateByAssignee, aggregateBySprint, aggregateByStatus, aggregateByStatusWithOptions, aggregateByEpic, getSavedQueryJQL } from '@/lib/jira/api';
 import { JiraGroupedData, JiraIssue } from '@/types/jira';
+import { buildPersonalJql } from '@/lib/jira/personalJql.js';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +13,15 @@ export async function POST(request: NextRequest) {
     const queryId = body.queryId;
     const statusGrouping = body.statusGrouping;
 
+    const personalMode = body.personalMode === true;
+    const assigneeEmail: string = body.assigneeEmail || '';
+    const year = parseInt(body.year || String(new Date().getFullYear()));
+    const month = parseInt(body.month || String(new Date().getMonth() + 1));
+
     let jql: string;
-    if (typeof queryId === 'string' && /^\d+$/.test(queryId)) {
+    if (personalMode && assigneeEmail) {
+      jql = buildPersonalJql(assigneeEmail, year, month);
+    } else if (typeof queryId === 'string' && /^\d+$/.test(queryId)) {
       jql = await getSavedQueryJQL(queryId);
     } else {
       jql = body.jql || 'project = YOUR_PROJECT ORDER BY updated DESC';
