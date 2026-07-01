@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import JiraBarChart from '@/components/chart/JiraBarChart';
 import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
+import LogWorkModal from '@/components/modal/LogWorkModal';
 import { DashboardIssue, JiraGroupedData, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
+import { readProfileFromDocumentCookie } from '@/lib/profile-cookie.js';
 
 interface DashboardData {
   issues: DashboardIssue[];
@@ -22,7 +24,6 @@ interface WorkingDayData {
   source: 'nager' | 'fallback';
 }
 
-const PERSONAL_QUERY_ID = '10244';
 const GROUP_ORDER = ['Open', 'In Progress', 'Pending', 'Done / Resolved'];
 const DONE_RESOLVED_STATUSES = new Set(['Done', 'Resolved', 'Closed']);
 
@@ -58,14 +59,16 @@ export default function PersonalStatisticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [maxResults] = useState(100);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [showLogWorkModal, setShowLogWorkModal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear]   = useState(() => new Date().getFullYear());
 
-  const fetchWorkingDays = useCallback(async () => {
+  const fetchWorkingDays = useCallback(async (month: number, year: number) => {
     setCalendarLoading(true);
     try {
-      const now = new Date();
       const params = new URLSearchParams({
-        year: String(now.getFullYear()),
-        month: String(now.getMonth() + 1),
+        year: String(year),
+        month: String(month),
       });
       const res = await fetch(`/api/calendar/vn-working-days?${params.toString()}`);
       if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
@@ -77,15 +80,26 @@ export default function PersonalStatisticsPage() {
     }
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (month: number, year: number) => {
     setLoading(true);
     setError(null);
+
+    const profile = readProfileFromDocumentCookie();
+    if (!profile?.email) {
+      setError(t('personal.noEmailError'));
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/jira/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          queryId: PERSONAL_QUERY_ID,
+          personalMode: true,
+          assigneeEmail: profile.email,
+          year,
+          month,
           groupBy: 'status',
           statusGrouping: 'personal',
           startAt: 0,
@@ -104,16 +118,16 @@ export default function PersonalStatisticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [maxResults]);
+  }, [maxResults, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void fetchWorkingDays();
-      void fetchData();
+      void fetchWorkingDays(selectedMonth, selectedYear);
+      void fetchData(selectedMonth, selectedYear);
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [fetchData, fetchWorkingDays]);
+  }, [fetchData, fetchWorkingDays, selectedMonth, selectedYear]);
 
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
   const handleTaskClick = useCallback((issue: JiraIssue) => {
@@ -122,6 +136,50 @@ export default function PersonalStatisticsPage() {
   const handleCloseDialog = useCallback(() => {
     setSelectedIssue(null);
   }, []);
+
+  const handleRefreshTask = useCallback(async (issue: JiraIssue) => {
+    const refreshPromise = fetchData(selectedMonth, selectedYear);
+    const refreshedIssueResPromise = fetch(`/api/jira/issue?key=${encodeURIComponent(issue.key)}`);
+    const [, refreshedIssueRes] = await Promise.all([
+      refreshPromise,
+      refreshedIssueResPromise,
+    ]);
+
+    if (!refreshedIssueRes.ok) {
+      throw new Error(`Issue refresh failed: ${refreshedIssueRes.status}`);
+    }
+
+    const refreshedIssue: JiraIssue = await refreshedIssueRes.json();
+    setSelectedIssue(refreshedIssue);
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        fullIssues: {
+          ...prev.fullIssues,
+          [refreshedIssue.key]: refreshedIssue,
+        },
+      };
+    });
+    return refreshedIssue;
+  }, [fetchData, selectedMonth, selectedYear]);
+
+  const handleOpenLogWork = useCallback(() => {
+    setShowLogWorkModal(true);
+  }, []);
+
+  const handleCloseLogWork = useCallback(() => {
+    setShowLogWorkModal(false);
+  }, []);
+
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (!selectedIssue) {
+      await fetchData(selectedMonth, selectedYear);
+      return;
+    }
+
+    await handleRefreshTask(selectedIssue);
+  }, [fetchData, handleRefreshTask, selectedIssue, selectedMonth, selectedYear]);
 
   const handlePageChange = useCallback(() => {
     // JiraTable paginates the loaded issues client-side on this page.
@@ -182,7 +240,11 @@ export default function PersonalStatisticsPage() {
           </p>
           {workingDayData && (
             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              {t('personal.workingDays', { days: String(workingDayData.workingDays) })}
+              {t('personal.workingDays', {
+                  days: String(workingDayData.workingDays),
+                  month: String(selectedMonth).padStart(2, '0'),
+                  year: String(selectedYear),
+                })}
               {workingDayData.source === 'fallback' ? t('personal.workingDays.fallback') : t('personal.workingDays.included')}
             </p>
           )}
@@ -263,7 +325,22 @@ export default function PersonalStatisticsPage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} />
+      <TaskDetailModal
+        issue={selectedIssue}
+        onClose={handleCloseDialog}
+        onLogWork={handleOpenLogWork}
+        onRefresh={handleRefreshTask}
+      />
+
+      {showLogWorkModal && selectedIssue && (
+        <LogWorkModal
+          issueKey={selectedIssue.key}
+          issueSummary={selectedIssue.fields.summary}
+          originalEstimate={selectedIssue.fields.timeestimate}
+          onClose={handleCloseLogWork}
+          onSuccess={handleLogWorkSuccess}
+        />
+      )}
     </div>
   );
 }
