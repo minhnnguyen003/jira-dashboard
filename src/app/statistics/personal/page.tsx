@@ -238,13 +238,45 @@ export default function PersonalStatisticsPage() {
           <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
             {t('personal.savedFilterInfo')}
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 mt-3">
+          <label className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            {t('personal.monthLabel')}
+          </label>
+          <select
+            className="glass-select px-3 py-1.5 text-sm"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+            ))}
+          </select>
+
+          <label className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            {t('personal.yearLabel')}
+          </label>
+          <select
+            className="glass-select px-3 py-1.5 text-sm"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+          >
+            {[-2, -1, 0, 1].map((offset) => {
+              const y = new Date().getFullYear() + offset;
+              return <option key={y} value={y}>{y}</option>;
+            })}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-2">
           {workingDayData && (
             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
               {t('personal.workingDays', {
-                  days: String(workingDayData.workingDays),
-                  month: String(selectedMonth).padStart(2, '0'),
-                  year: String(selectedYear),
-                })}
+                days: String(workingDayData.workingDays),
+                month: String(selectedMonth).padStart(2, '0'),
+                year: String(selectedYear),
+              })}
               {workingDayData.source === 'fallback' ? t('personal.workingDays.fallback') : t('personal.workingDays.included')}
             </p>
           )}
