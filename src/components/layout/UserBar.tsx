@@ -82,6 +82,8 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
       <button
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
         className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl transition-all duration-200"
         style={{
           justifyContent: collapsed ? 'center' : 'flex-start',
@@ -113,8 +115,11 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
 
       {menuOpen && (
         <div
-          className="absolute left-2 right-2 mt-1 rounded-xl z-[60] overflow-hidden"
+          className="absolute mt-1 rounded-xl z-[60] overflow-hidden"
           style={{
+            top: '100%',
+            left: 8,
+            ...(collapsed ? { width: 180 } : { right: 8 }),
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
