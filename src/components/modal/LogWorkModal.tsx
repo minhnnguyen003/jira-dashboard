@@ -8,7 +8,7 @@ interface LogWorkModalProps {
   issueSummary: string;
   originalEstimate: string | null | undefined;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 function formatRemainingEstimate(value: string | null | undefined): string {
@@ -111,7 +111,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
         return;
       }
 
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');

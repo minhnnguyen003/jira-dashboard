@@ -98,6 +98,41 @@ export default function StatisticsPage() {
     setSelectedIssue(null);
   }, []);
 
+  const handleRefreshTask = useCallback(async (issue: JiraIssue) => {
+    const refreshPromise = selectedQuery
+      ? fetchData(
+          selectedQuery,
+          storedQueries.find((q) => q.id === selectedQuery)?.jql || '',
+          groupBy,
+          assignees
+        )
+      : Promise.resolve();
+    const refreshedIssueResPromise = fetch(`/api/jira/issue?key=${encodeURIComponent(issue.key)}`);
+
+    const [, refreshedIssueRes] = await Promise.all([
+      refreshPromise,
+      refreshedIssueResPromise,
+    ]);
+
+    if (!refreshedIssueRes.ok) {
+      throw new Error(`Issue refresh failed: ${refreshedIssueRes.status}`);
+    }
+
+    const refreshedIssue: JiraIssue = await refreshedIssueRes.json();
+    setSelectedIssue(refreshedIssue);
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        fullIssues: {
+          ...prev.fullIssues,
+          [refreshedIssue.key]: refreshedIssue,
+        },
+      };
+    });
+    return refreshedIssue;
+  }, [assignees, fetchData, groupBy, selectedQuery, storedQueries]);
+
   return (
     <div className="flex flex-col flex-1 p-6">
       <div className="mb-6 animate-slide-up">
@@ -213,7 +248,7 @@ export default function StatisticsPage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} onRefresh={handleRefreshTask} />
     </div>
   );
 }

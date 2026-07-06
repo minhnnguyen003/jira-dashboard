@@ -713,6 +713,14 @@ select.glass-select:focus {
   box-shadow: 0 0 0 3px var(--accent-bg), var(--glass-shadow-hover);
   outline: none;
 }
+select.glass-select option {
+  background: var(--dropdown-bg);
+  color: var(--text);
+}
+[data-theme="light"] select.glass-select option {
+  background: var(--dropdown-bg);
+  color: var(--text);
+}
 
 /* ========== HIDE DATEPICKER NATIVE ICON ========== */
 input[type='date']::-webkit-calendar-picker-indicator,

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 import { JiraIssue } from '@/types/jira';
+import { buildDateClauses, normalizeDateField } from './dateField.js';
+import { buildAssigneeJql, readProfileEmailFromRequestCookieHeader } from './profileAssignee.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -56,11 +58,13 @@ export async function GET(request: NextRequest) {
     const searchText = searchParams.get('search') || '';
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const dateField = normalizeDateField(searchParams.get('dateField'));
     const projectKey = searchParams.get('project');
     const issueType = searchParams.get('issueType');
     const startAt = parseInt(searchParams.get('startAt') || '0');
     const maxResults = parseInt(searchParams.get('maxResults') || '15');
     const includeFull = searchParams.get('full') === 'true';
+    const profileEmail = readProfileEmailFromRequestCookieHeader(request.headers.get('cookie'));
 
     const axiosInstance = axios.create({
       baseURL: baseUrl,
@@ -68,11 +72,7 @@ export async function GET(request: NextRequest) {
       timeout: 30000,
     });
 
-    // Fetch current user
-    const userRes = await axiosInstance.get('/rest/api/2/myself', {
-      headers: getAuthHeaders(),
-    });
-    const assigneeFilter = `assignee = currentUser()`;
+    const assigneeFilter = buildAssigneeJql(profileEmail);
 
     // Build JQL clauses
     const clauses: string[] = [assigneeFilter];
@@ -90,15 +90,10 @@ export async function GET(request: NextRequest) {
       clauses.push(`issuetype = ${issueType}`);
     }
 
-    if (from) {
-      clauses.push(`updated >= "${from} 00:00"`);
-    }
+    const { clauses: dateClauses, orderBy } = buildDateClauses({ from, to, dateField });
+    clauses.push(...dateClauses);
 
-    if (to) {
-      clauses.push(`updated <= "${to} 23:59"`);
-    }
-
-    const jql = clauses.join(' AND ') + ' ORDER BY updated DESC';
+    const jql = clauses.join(' AND ') + ` ORDER BY ${orderBy}`;
 
     // First call without maxResults to get total count
     const countRes = await axiosInstance.post('/rest/api/2/search', {

@@ -71,6 +71,36 @@ export default function DashboardPage() {
     setSelectedIssue(null);
   }, []);
 
+  const handleRefreshTask = useCallback(async (issue: JiraIssue) => {
+    const refreshPromise = hasSearched
+      ? fetchData(jql, groupBy, startAt)
+      : Promise.resolve();
+    const refreshedIssueResPromise = fetch(`/api/jira/issue?key=${encodeURIComponent(issue.key)}`);
+
+    const [, refreshedIssueRes] = await Promise.all([
+      refreshPromise,
+      refreshedIssueResPromise,
+    ]);
+
+    if (!refreshedIssueRes.ok) {
+      throw new Error(`Issue refresh failed: ${refreshedIssueRes.status}`);
+    }
+
+    const refreshedIssue: JiraIssue = await refreshedIssueRes.json();
+    setSelectedIssue(refreshedIssue);
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        fullIssues: {
+          ...prev.fullIssues,
+          [refreshedIssue.key]: refreshedIssue,
+        },
+      };
+    });
+    return refreshedIssue;
+  }, [fetchData, groupBy, hasSearched, jql, startAt]);
+
   return (
     <div className="flex flex-col flex-1 p-6">
       <div className="mb-6 animate-slide-up">
@@ -138,7 +168,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} onRefresh={handleRefreshTask} />
 
       {!loading && !error && !hasSearched && (
         <div className="flex items-center justify-center py-20 animate-slide-up">

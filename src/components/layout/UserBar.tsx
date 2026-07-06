@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { readProfileFromDocumentCookie } from '@/lib/profile-cookie.js';
 import { getUserInitials } from '@/lib/userInitials.js';
+import { buildJiraAvatarProxyUrl } from '@/lib/jiraAvatar.js';
 
 interface UserBarProps {
   collapsed: boolean;
@@ -29,6 +30,10 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
   }, []);
 
   useEffect(() => {
+    setAvatarFailed(false);
+  }, [profile?.avatarUrl]);
+
+  useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -43,7 +48,8 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
     return null;
   }
 
-  const showImage = Boolean(profile.avatarUrl) && !avatarFailed;
+  const avatarSrc = buildJiraAvatarProxyUrl(profile.avatarUrl);
+  const showImage = Boolean(avatarSrc) && !avatarFailed;
 
   const avatar = (
     <span
@@ -60,7 +66,7 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={profile.avatarUrl}
+          src={avatarSrc}
           alt={profile.displayName}
           width={32}
           height={32}

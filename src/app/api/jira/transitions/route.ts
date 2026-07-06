@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { sanitizeTransitionFields } from '@/lib/jira/transitionPayload';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -27,6 +28,33 @@ function getAuthHeaders(): Record<string, string> {
   }
 
   throw new Error('Jira credentials not configured. Set JIRA_BEARER_TOKEN or JIRA_EMAIL+JIRA_API_TOKEN');
+}
+
+function formatJiraError(detail: unknown): string {
+  if (!detail || typeof detail !== 'object') {
+    return typeof detail === 'string' ? detail : 'Unknown error';
+  }
+
+  const jiraDetail = detail as {
+    errorMessages?: unknown[];
+    errors?: Record<string, unknown>;
+  };
+
+  const messages: string[] = [];
+
+  if (Array.isArray(jiraDetail.errorMessages)) {
+    messages.push(
+      ...jiraDetail.errorMessages.filter((message): message is string => typeof message === 'string' && message.trim().length > 0)
+    );
+  }
+
+  if (jiraDetail.errors && typeof jiraDetail.errors === 'object') {
+    messages.push(
+      ...Object.values(jiraDetail.errors).filter((message): message is string => typeof message === 'string' && message.trim().length > 0)
+    );
+  }
+
+  return messages.length > 0 ? messages.join(' | ') : JSON.stringify(detail);
 }
 
 export async function GET(request: NextRequest) {
@@ -59,7 +87,7 @@ export async function GET(request: NextRequest) {
     const status = error.response?.status || error.code || 'UNKNOWN';
     const detail = error.response?.data || error.message || 'Unknown error';
     return NextResponse.json(
-      { error: `Jira API error (${status}): ${JSON.stringify(detail)}` },
+      { error: `Jira API error (${status}): ${formatJiraError(detail)}` },
       { status: status >= 400 ? status : 500 }
     );
   }
@@ -89,8 +117,9 @@ export async function POST(request: NextRequest) {
       transition: { id: transitionId },
     };
 
-    if (fields && Object.keys(fields).length > 0) {
-      transitionPayload.fields = fields;
+    const cleanedFields = sanitizeTransitionFields(fields);
+    if (cleanedFields) {
+      transitionPayload.fields = cleanedFields;
     }
 
     await axiosInstance.post(`/rest/api/2/issue/${key}/transitions`, transitionPayload, {
@@ -103,7 +132,7 @@ export async function POST(request: NextRequest) {
     const status = error.response?.status || error.code || 'UNKNOWN';
     const detail = error.response?.data || error.message || 'Unknown error';
     return NextResponse.json(
-      { error: `Jira API error (${status}): ${JSON.stringify(detail)}` },
+      { error: `Jira API error (${status}): ${formatJiraError(detail)}` },
       { status: status >= 400 ? status : 500 }
     );
   }

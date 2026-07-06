@@ -2,6 +2,8 @@
 
 import { JiraIssue, JiraTransition, JiraTransitionField, JiraEditMeta } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
+import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
+import { getDescriptionPlaceholder, runIssueRefresh } from './taskDetailModal.helpers.js';
 import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react';
 
 interface TaskDetailModalProps {
@@ -65,14 +67,6 @@ function formatDateTimeForInput(dateStr: string | null | undefined): string {
   } catch {
     return '';
   }
-}
-
-function parseVNDate(dateStr: string): string | null {
-  if (!dateStr || dateStr === '-') return null;
-  const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/);
-  if (!match) return dateStr;
-  const [, day, month, year, hours, minutes] = match;
-  return `${year}-${month}-${day}T${hours}:${minutes}:00.000+0700`;
 }
 
 function formatJiraDatetime(dateInput: string): string | null {
@@ -169,7 +163,9 @@ function Chip({ children, style }: { children: React.ReactNode; style?: React.CS
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
       style={{
         background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: 'rgba(255,255,255,0.1)',
         color: '#c0c4d4',
         ...style,
       }}
@@ -185,7 +181,9 @@ function LightChip({ children, style }: { children: React.ReactNode; style?: Rea
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
       style={{
         background: 'rgba(0,0,0,0.04)',
-        border: '1px solid rgba(0,0,0,0.08)',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: 'rgba(0,0,0,0.08)',
         color: '#3a3e4e',
         ...style,
       }}
@@ -334,7 +332,7 @@ function formatDateTimeFromInput(inputValue: string): string {
 }
 
 export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }: TaskDetailModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [isLight, setIsLight] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -439,7 +437,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
       } else if (fieldId === 'customfield_10302') {
         initialValues[fieldId] = issue.fields.customfield_10302 || issue.fields.duedate || '';
       } else if (fieldId === 'timetracking') {
-        initialValues[fieldId] = issue.fields.timeestimate || '';
+        initialValues[fieldId] = normalizeRemainingEstimateValue(issue.fields.timeestimate);
       } else if (fieldDef.required) {
         initialValues[fieldId] = '';
       } else {
@@ -454,55 +452,33 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const transitionPayload: Record<string, unknown> = {};
-      const { fields: requiredFields } = selectedTransition;
+      const transitionPayload = buildTransitionFields(selectedTransition.fields, fieldValues, issue.fields);
 
-      for (const [fieldId, fieldDef] of Object.entries(requiredFields)) {
-        const val = fieldValues[fieldId];
-        if (fieldDef.schema?.type === 'resolution') {
-          const selectedResolution = fieldDef.allowedValues?.find(r => r.name === val);
-          if (selectedResolution) {
-            transitionPayload[fieldId] = { id: selectedResolution.id };
-          }
-        } else if (fieldId === 'customfield_10300') {
-          transitionPayload[fieldId] = val ? parseVNDate(val) : null;
-        } else if (fieldId === 'customfield_10302') {
-          transitionPayload[fieldId] = val ? parseVNDate(val) : null;
-        } else if (fieldId === 'customfield_10304') {
-          transitionPayload[fieldId] = val || '';
-        } else if (fieldId === 'timetracking') {
-          const timetracking: Record<string, string> = {};
-          if (val) {
-            timetracking.remaining = val;
-          } else if (issue.fields.timeestimate) {
-            timetracking.remaining = issue.fields.timeestimate;
-          }
-          transitionPayload[fieldId] = timetracking;
-        } else if (val && val !== '') {
-          transitionPayload[fieldId] = val;
-        }
-      }
-
-      await fetch('/api/jira/transitions', {
+      const response = await fetch('/api/jira/transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: issue.key,
           transitionId: selectedTransition.id,
-          fields: Object.keys(transitionPayload).length > 0 ? transitionPayload : undefined,
+          fields: transitionPayload,
         }),
       });
 
-      onClose();
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `Transition failed (${response.status})`);
+      }
+
+      await runIssueRefresh(issue, onRefresh);
+      setSelectedTransition(null);
+      setTransitionFieldsData({});
+      setFieldValues({});
     } catch (err) {
       setTransitionError(err instanceof Error ? err.message : 'Transition failed');
     } finally {
       setTransitioning(false);
-      setSelectedTransition(null);
-      setTransitionFieldsData({});
-      setFieldValues({});
     }
-  }, [selectedTransition, issue, fieldValues, onClose]);
+  }, [selectedTransition, issue, fieldValues, onRefresh]);
 
   const updateField = useCallback((fieldId: string, value: string) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
@@ -587,35 +563,43 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
   const handleSave = useCallback(async () => {
     if (!issue || saving) return;
 
-    setSaving(true);
-    setSaveError(null);
+    const previousEditedValues = { ...editedValues };
+    const previousDatetimeValues = { ...datetimeValues };
 
     try {
       const updateFields = buildUpdateFields();
 
-      if (Object.keys(updateFields).length > 0) {
-        const res = await fetch('/api/jira/update-issue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: issue.key, fields: updateFields }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Update failed');
-        }
-        if (onRefresh) {
-          await onRefresh(issue);
-        }
+      setSaveError(null);
+      setEditMode(false);
+      setSaving(true);
+
+      if (Object.keys(updateFields).length === 0) {
+        setEditedValues({});
+        setDatetimeValues({});
+        return;
       }
 
-      setEditMode(false);
+      const res = await fetch('/api/jira/update-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: issue.key, fields: updateFields }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Update failed');
+      }
+      await runIssueRefresh(issue, onRefresh);
       setEditedValues({});
+      setDatetimeValues({});
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Unknown error');
+      setEditMode(true);
+      setEditedValues(previousEditedValues);
+      setDatetimeValues(previousDatetimeValues);
     } finally {
       setSaving(false);
     }
-  }, [buildUpdateFields, issue, onRefresh, saving]);
+  }, [buildUpdateFields, datetimeValues, editedValues, issue, onRefresh, saving]);
 
   const isFieldEditable = (field: string): boolean => {
     if (!editMode) return false;
@@ -683,7 +667,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
   const statusText = STATUS_MAP[f.status.name];
   const priorityText = PRIORITY_MAP[f.priority?.name || 'None'];
 
-  const requiredTransitionFields = Object.entries(transitionFieldsData || {}).filter(([, fieldDef]) => fieldDef.required);
+  const transitionFormFields = Object.entries(transitionFieldsData || {});
 
   return (
     <div
@@ -704,7 +688,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     >
       <div
         ref={modalRef}
-        className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl flex flex-col"
+        className="relative w-[80vw] max-w-[80vw] h-[90vh] max-h-[90vh] overflow-hidden rounded-2xl flex flex-col"
         style={{
           background: c.cardBg,
           WebkitBackdropFilter: 'blur(32px) saturate(1.6)',
@@ -716,17 +700,60 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {saving && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3"
+            style={{ background: isLight ? 'rgba(255,255,255,0.72)' : 'rgba(20,22,40,0.72)', backdropFilter: 'blur(10px)' }}
+          >
+            <div
+              className="w-9 h-9 rounded-full animate-spin"
+              style={{
+                borderWidth: '3px',
+                borderStyle: 'solid',
+                borderColor: isLight ? 'rgba(99,102,241,0.18)' : 'rgba(160,148,232,0.18)',
+                borderTopColor: c.accent,
+              }}
+            />
+            <div className="text-sm font-medium" style={{ color: c.textPrimary }}>Đang lưu thay đổi...</div>
+          </div>
+        )}
         {/* Header */}
         <div
           className="flex items-center justify-between px-6 py-4 border-b shrink-0"
           style={{ borderColor: c.borderRow, background: c.cardBg }}
         >
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold" style={{ color: c.textPrimary }}>{t('dialog.taskDetail')}</h2>
+          <div className="min-w-0 flex-1 pr-4">
+            <div className="flex items-start gap-3 mb-2 min-w-0">
+              <ChipComp style={{ background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(160,148,232,0.15)', borderColor: isLight ? 'rgba(99,102,241,0.2)' : 'rgba(160,148,232,0.35)', color: c.accent }}>
+                {currentIssue.key}
+              </ChipComp>
+              <div className="min-w-0 flex-1">
+                {editMode ? (
+                  isFieldEditable('summary') ? (
+                    <EditInput
+                      value={getInitialValue('summary', f.summary)}
+                      onChange={(v) => handleEdit('summary', v)}
+                      textPrimary={c.textPrimary}
+                      borderColor={c.chipBorder}
+                      theme={isLight ? 'light' : 'dark'}
+                      style={{ fontWeight: 500, width: '100%' }}
+                    />
+                  ) : (
+                    <span className="block w-full text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap" style={{ color: c.textPrimary }}>{f.summary}</span>
+                  )
+                ) : (
+                  <span className="block w-full text-sm font-medium leading-relaxed overflow-hidden text-ellipsis whitespace-nowrap" style={{ color: c.textPrimary }}>{f.summary}</span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {editMode && (
               <>
+                <div className="text-[11px] font-medium whitespace-nowrap" style={{ color: '#fbbf24' }}>
+                  EDIT MODE - Nhấn F10 để lưu
+                  {editMetaLoading && <span style={{ color: c.textMuted }}>&nbsp;| Loading edit meta...</span>}
+                </div>
                 <button
                   onClick={() => { void handleSave(); }}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg"
@@ -777,36 +804,12 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
 
         <div className="flex flex-1 overflow-y-auto">
           <div className="w-full px-6 py-5">
-            {editMode && (
-              <div className="text-[11px] font-medium mb-4" style={{ color: '#fbbf24' }}>
-                EDIT MODE — Nhấn F10 để lưu
-                {editMetaLoading && <span style={{ color: c.textMuted }}>&nbsp;| Loading edit meta...</span>}
-              </div>
-            )}
             {saveError && (
               <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'rgba(242,144,150,0.15)', color: '#f29096', border: '1px solid rgba(242,144,150,0.3)' }}>
                 {saveError}
               </div>
             )}
-            {/* Key + Summary */}
-            <div className="mb-5">
-              <div className="flex items-start gap-3 mb-2">
-                <ChipComp style={{ background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(160,148,232,0.15)', borderColor: isLight ? 'rgba(99,102,241,0.2)' : 'rgba(160,148,232,0.35)', color: c.accent }}>
-                  {currentIssue.key}
-                </ChipComp>
-                {editMode ? (
-                  isFieldEditable('summary') ? (
-                    <EditInput value={getInitialValue('summary', f.summary)} onChange={(v) => handleEdit('summary', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} style={{ fontWeight: 500 }} />
-                  ) : (
-                    <span className="text-sm font-medium leading-relaxed" style={{ color: c.textPrimary }}>{f.summary}</span>
-                  )
-                ) : (
-                  <span className="text-sm font-medium leading-relaxed" style={{ color: c.textPrimary }}>{f.summary}</span>
-                )}
-              </div>
-              <div className="text-xs mt-1" style={{ color: c.textMuted }}>{t('dialog.id')}: {currentIssue.id}</div>
-            </div>
-
+            <div className="text-xs mb-5" style={{ color: c.textMuted }}>{t('dialog.id')}: {currentIssue.id}</div>
             {/* Status + Priority + Type */}
             <div className="grid grid-cols-3 gap-4 mb-5">
               <ValueLabel label={t('dialog.status')} c={c}>
@@ -816,8 +819,9 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                     style={{
                       background: statusText?.bg || (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'),
                       color: statusText?.text || c.chipText,
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
                       borderColor: statusText?.border || c.chipBorder,
-                      border: '1px solid',
                     }}
                     onClick={handleStatusArrowClick}
                   >
@@ -1061,7 +1065,14 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
               <ValueLabel label={t('dialog.description')} c={c}>
                 {editMode ? (
                   isFieldEditable('description') ? (
-                    <EditTextArea value={getInitialValue('description', f.description || '')} onChange={(v) => handleEdit('description', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditTextArea
+                      value={getInitialValue('description', f.description || '')}
+                      onChange={(v) => handleEdit('description', v)}
+                      textPrimary={c.textPrimary}
+                      borderColor={c.chipBorder}
+                      placeholder={getDescriptionPlaceholder(getInitialValue('description', f.description || ''), language)}
+                      theme={isLight ? 'light' : 'dark'}
+                    />
                   ) : (
                     <div
                       className="text-xs leading-relaxed whitespace-pre-wrap rounded-xl px-4 py-3"
@@ -1251,13 +1262,13 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                   <div className="text-xs mt-1" style={{ color: c.textMuted }}>Transition: {selectedTransition.name}</div>
                 </div>
 
-                {requiredTransitionFields.length > 0 && (
+                {transitionFormFields.length > 0 && (
                   <div className="mb-4">
                     <div className="text-[11px] font-medium uppercase tracking-wider mb-3" style={{ color: c.textMuted }}>
                       {t('dialog.transitionField')}
                     </div>
                     <div className="space-y-4">
-                      {requiredTransitionFields.map(([fieldId, fieldDef]) => (
+                      {transitionFormFields.map(([fieldId, fieldDef]) => (
                         <div key={fieldId}>
                           <label className="text-xs font-medium mb-1.5 block" style={{ color: c.textSecondary }}>
                             {fieldDef.name || fieldId}

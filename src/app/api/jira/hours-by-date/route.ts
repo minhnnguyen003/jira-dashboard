@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { buildWorklogAuthorJql, readProfileEmailFromRequestCookieHeader } from './profileAuthor.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -69,6 +70,8 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get('to');
     const selectedDate = searchParams.get('selectedDate');
     const maxResults = parseInt(searchParams.get('maxResults') || '100');
+    const profileEmail = readProfileEmailFromRequestCookieHeader(request.headers.get('cookie'));
+    const worklogAuthorClause = buildWorklogAuthorJql(profileEmail);
 
     const axiosInstance = axios.create({
       baseURL: baseUrl,
@@ -88,7 +91,7 @@ export async function GET(request: NextRequest) {
 
       while ((!hasFetched || allWorklogIssues.length < totalIssues) && allWorklogIssues.length < 2000) {
         response = await axiosInstance.post('/rest/api/2/search', {
-          jql: 'worklogAuthor = currentUser()',
+          jql: worklogAuthorClause,
           fields: ['summary', 'status', 'issuetype', 'priority', 'assignee', 'timeestimate', 'timeoriginalestimate', 'timespent', 'worklog', 'duedate', 'resolutiondate', 'created', 'updated', 'labels', 'sprint', 'epic', 'resolution', 'startdate', 'customfield_10300', 'customfield_10302', 'reporter', 'parent', 'description'],
           startAt,
           maxResults,
@@ -224,7 +227,7 @@ export async function GET(request: NextRequest) {
     const fromStart = new Date(`${from}T00:00:00`);
     const toEnd = new Date(`${to}T23:59:59`);
 
-    const jql = `worklogAuthor = currentUser() ORDER BY updated DESC`;
+    const jql = `${worklogAuthorClause} ORDER BY updated DESC`;
 
     const allIssues: any[] = [];
     let startAt = 0;

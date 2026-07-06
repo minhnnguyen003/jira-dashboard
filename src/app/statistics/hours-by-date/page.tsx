@@ -38,19 +38,6 @@ function formatDate(dateStr: string) {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-function parseDDMMYYYYToISO(val: string): string | null {
-  const parts = val.split('/');
-  if (parts.length !== 3) return null;
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const year = parseInt(parts[2], 10);
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-  if (month < 1 || month > 12) return null;
-  const d = new Date(year, month - 1, day);
-  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
-  return `${year}-${pad(month)}-${pad(d.getDate())}`;
-}
-
 function isoToDDMMYYYY(iso: string): string {
   const [year, month, day] = iso.split('-');
   return `${day}/${month}/${year}`;
@@ -66,8 +53,8 @@ export default function HoursByDatePage() {
   const [dateRangeState, setDateRangeState] = useState<DateRangeState>(() =>
     createHoursByDateInitialState(monthStart, monthEnd)
   );
-  const [fromDisplay, setFromDisplay] = useState(isoToDDMMYYYY(monthStart));
-  const [toDisplay, setToDisplay] = useState(isoToDDMMYYYY(monthEnd));
+  const [fromDisplay, setFromDisplay] = useState(monthStart);
+  const [toDisplay, setToDisplay] = useState(monthEnd);
   const [data, setData] = useState<DailyHours[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,18 +65,16 @@ export default function HoursByDatePage() {
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
 
   const handleFromDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setFromDisplay(val);
-    const iso = parseDDMMYYYYToISO(val);
+    const iso = e.target.value;
+    setFromDisplay(iso);
     if (iso) {
       setDateRangeState((prev) => updateHoursByDateDraftRange(prev, { from: iso }));
     }
   };
 
   const handleToDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setToDisplay(val);
-    const iso = parseDDMMYYYYToISO(val);
+    const iso = e.target.value;
+    setToDisplay(iso);
     if (iso) {
       setDateRangeState((prev) => updateHoursByDateDraftRange(prev, { to: iso }));
     }
@@ -234,6 +219,26 @@ export default function HoursByDatePage() {
     setSelectedIssue(null);
   }, []);
 
+  const handleRefreshTask = useCallback(async (issue: JiraIssue) => {
+    const refreshTasksPromise = selectedDate
+      ? fetchTasksForDate(selectedDate)
+      : Promise.resolve();
+    const refreshedIssueResPromise = fetch(`/api/jira/issue?key=${encodeURIComponent(issue.key)}`);
+
+    const [, refreshedIssueRes] = await Promise.all([
+      refreshTasksPromise,
+      refreshedIssueResPromise,
+    ]);
+
+    if (!refreshedIssueRes.ok) {
+      throw new Error(`Issue refresh failed: ${refreshedIssueRes.status}`);
+    }
+
+    const refreshedIssue: JiraIssue = await refreshedIssueRes.json();
+    setSelectedIssue(refreshedIssue);
+    return refreshedIssue;
+  }, [fetchTasksForDate, selectedDate]);
+
   const options: ChartOptions<'bar'> = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -323,20 +328,20 @@ export default function HoursByDatePage() {
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-dim)' }}>{t('hoursByDate.fromLabel')}</label>
             <input
-              type="text"
+              type="date"
               value={fromDisplay}
               onChange={handleFromDateChange}
-              placeholder={t('hoursByDate.placeholder')}
+              onClick={(e) => e.currentTarget.showPicker?.()}
               className="input-field px-3 py-2 text-sm"
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-dim)' }}>{t('hoursByDate.toLabel')}</label>
             <input
-              type="text"
+              type="date"
               value={toDisplay}
               onChange={handleToDateChange}
-              placeholder={t('hoursByDate.placeholder')}
+              onClick={(e) => e.currentTarget.showPicker?.()}
               className="input-field px-3 py-2 text-sm"
             />
           </div>
@@ -437,7 +442,7 @@ export default function HoursByDatePage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseModal} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseModal} onRefresh={handleRefreshTask} />
     </div>
   );
 }

@@ -40,6 +40,15 @@ interface IssueType {
   name: string;
 }
 
+type DateFieldOption = 'startDate' | 'created' | 'updated' | 'endDate';
+
+const DATE_FIELD_OPTIONS: Array<{ value: DateFieldOption; label: string }> = [
+  { value: 'startDate', label: 'Start Date' },
+  { value: 'created', label: 'Creation Date' },
+  { value: 'updated', label: 'Lasted Update' },
+  { value: 'endDate', label: 'End Date' },
+];
+
 const WORK_VISIBLE_COLUMNS = ['key', 'summary', 'assignee', 'status', 'priority', 'issuetype', 'estimated', 'originalEstimate', 'logged', 'startDate', 'dueDate', 'resolutionDate'] as const;
 
 const WORK_COLUMN_LABELS = {
@@ -143,6 +152,7 @@ export default function WorkManagementPage() {
   const [searchText, setSearchText] = useState('');
   const [fromDate, setFromDate] = useState(defaultFrom);
   const [toDate, setToDate] = useState(defaultTo);
+  const [dateField, setDateField] = useState<DateFieldOption>('startDate');
   const [selectedProject, setSelectedProject] = useState('');
   const [selectedIssueType, setSelectedIssueType] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -187,6 +197,7 @@ export default function WorkManagementPage() {
       if (searchText) params.set('search', searchText);
       if (fromDate) params.set('from', fromDate);
       if (toDate) params.set('to', toDate);
+      params.set('dateField', dateField);
       if (selectedProject) params.set('project', selectedProject);
       if (selectedIssueType) params.set('issueType', selectedIssueType);
       params.set('startAt', '0');
@@ -206,7 +217,7 @@ export default function WorkManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchText, fromDate, toDate, selectedProject, selectedIssueType, selectedStatuses]);
+  }, [searchText, fromDate, toDate, dateField, selectedProject, selectedIssueType, selectedStatuses]);
 
   useEffect(() => {
     if (projects.length > 0 && issueTypes.length > 0 && !hasLoadedRef.current) {
@@ -302,9 +313,14 @@ export default function WorkManagementPage() {
     setShowLogWorkModal(false);
   }, []);
 
-  const handleLogWorkSuccess = useCallback(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (!selectedIssue) {
+      await fetchTasks();
+      return;
+    }
+
+    await handleRefreshTask(selectedIssue);
+  }, [fetchTasks, handleRefreshTask, selectedIssue]);
 
   return (
     <div className="flex flex-1 p-4 gap-4" style={{ height: 'calc(100vh - 56px)' }}>
@@ -338,6 +354,19 @@ export default function WorkManagementPage() {
                 onChange={(v) => setToDate(v)}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Date Field</label>
+            <select
+              value={dateField}
+              onChange={(e) => setDateField(e.target.value as DateFieldOption)}
+              className="glass-select w-full px-3 py-2 text-sm"
+            >
+              {DATE_FIELD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
 
           <div>
