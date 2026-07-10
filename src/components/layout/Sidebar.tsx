@@ -28,6 +28,7 @@ const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t
   'Tạo Task': 'nav.createTask',
   'Tạo Task hàng loạt': 'nav.createTaskBulk',
   'Quản lý công việc': 'nav.workManagement',
+  'Duyệt Task': 'nav.browseTasks',
   'Thống kê': 'nav.statistics',
   'Thống kê tổng hợp': 'nav.statisticsOverview',
   'Thống kê cá nhân': 'nav.personalStatistics',
@@ -77,6 +78,15 @@ const menuItems: MenuItem[] = [
         icon: (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        ),
+      },
+      {
+        href: '/browse-tasks',
+        label: 'Duyệt Task',
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
         ),
       },
