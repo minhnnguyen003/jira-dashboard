@@ -12,6 +12,7 @@ test('readProfileFromRequestCookieHeader parses profile cookies', () => {
     {
       displayName: 'Minh Nguyen',
       email: 'minh@etc.vn',
+      avatarUrl: '',
     },
   );
 });

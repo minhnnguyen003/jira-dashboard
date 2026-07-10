@@ -74,8 +74,6 @@ const EMPTY_FILTERS: BrowseFilters = {
 
 const BROWSE_VISIBLE_COLUMNS = ['key', 'summary', 'assignee', 'status', 'priority', 'issuetype', 'estimated', 'originalEstimate', 'logged', 'startDate', 'dueDate', 'resolutionDate'] as const;
 
-type FilterTabKey = 'search' | 'project' | 'status' | 'issueType' | 'assignee' | 'startDate';
-
 function toVNDate(dateStr: string): string {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-');
@@ -123,29 +121,19 @@ function DatePickerField({ value, onChange }: { value: string; onChange: (v: str
   );
 }
 
-interface FilterModalProps {
+interface FilterPanelProps {
   initialFilters: BrowseFilters;
   projects: Project[];
   issueTypes: IssueType[];
   statuses: Status[];
   users: JiraUser[];
-  onClose: () => void;
+  expanded: boolean;
   onSubmit: (filters: BrowseFilters) => void;
 }
 
-function FilterModal({ initialFilters, projects, issueTypes, statuses, users, onClose, onSubmit }: FilterModalProps) {
+function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, expanded, onSubmit }: FilterPanelProps) {
   const { t } = useLanguage();
   const [filters, setFilters] = useState<BrowseFilters>(initialFilters);
-  const [activeTab, setActiveTab] = useState<FilterTabKey>('search');
-
-  const tabs: Array<{ key: FilterTabKey; label: string; hasValue: boolean }> = [
-    { key: 'search', label: t('browseTasks.tab.search'), hasValue: filters.search.trim() !== '' },
-    { key: 'project', label: t('browseTasks.tab.project'), hasValue: filters.project !== '' },
-    { key: 'status', label: t('browseTasks.tab.status'), hasValue: filters.statuses.length > 0 },
-    { key: 'issueType', label: t('browseTasks.tab.issueType'), hasValue: filters.issueType !== '' },
-    { key: 'assignee', label: t('browseTasks.tab.assignee'), hasValue: filters.assignee !== '' },
-    { key: 'startDate', label: t('browseTasks.tab.startDate'), hasValue: filters.startFrom !== '' || filters.startTo !== '' },
-  ];
 
   const toggleStatus = (name: string) => {
     setFilters((prev) => ({
@@ -156,101 +144,63 @@ function FilterModal({ initialFilters, projects, issueTypes, statuses, users, on
     }));
   };
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      id="browse-tasks-filter-panel"
+      aria-hidden={!expanded}
+      inert={!expanded ? true : undefined}
+      className="glass-card-subtle w-full rounded-2xl overflow-hidden transition-all duration-300 ease-in-out"
+      style={{
+        maxHeight: expanded ? '70vh' : '0',
+        opacity: expanded ? 1 : 0,
+        border: expanded ? '1px solid var(--border)' : '0 solid transparent',
+        background: 'var(--dropdown-bg)',
+        backdropFilter: 'blur(18px) saturate(1.3)',
+        pointerEvents: expanded ? 'auto' : 'none',
+      }}
     >
       <div
-        className="glass-card-subtle flex flex-col rounded-2xl overflow-hidden"
+        className="flex max-h-[70vh] flex-col overflow-hidden"
         style={{
-          width: 'min(720px, 100%)',
-          maxHeight: 'min(560px, 90vh)',
-          background: 'var(--dropdown-bg)',
-          border: '1px solid var(--border)',
-          backdropFilter: 'blur(18px) saturate(1.3)',
+          visibility: expanded ? 'visible' : 'hidden',
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>{t('browseTasks.filterTitle')}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg transition-all duration-200"
-            style={{ color: 'var(--text-dim)', background: 'transparent', cursor: 'pointer' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        {/* Body: all filters, flowing */}
+        <div className="flex-1 overflow-auto p-5">
+          <div className="flex flex-col gap-4">
+            {/* Row 1: search (full width) */}
+            <div className="w-full">
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.search')}</label>
+              <input
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder={t('browseTasks.searchPlaceholder')}
+                className="input-field w-full px-3 py-2 text-sm"
+              />
+            </div>
 
-        {/* Body: vertical tabs + content */}
-        <div className="flex flex-1 overflow-hidden" style={{ minHeight: '320px' }}>
-          {/* Vertical tab list */}
-          <div
-            className="flex flex-col py-3 px-2 gap-1 flex-shrink-0 overflow-y-auto"
-            style={{ width: '180px', borderRight: '1px solid var(--border)' }}
-          >
-            {tabs.map((tab) => {
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm text-left transition-all duration-200"
-                  style={{
-                    color: active ? 'var(--accent)' : 'var(--text-dim)',
-                    background: active ? 'var(--accent-bg)' : 'transparent',
-                    fontWeight: active ? 600 : 400,
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <span className="truncate">{tab.label}</span>
-                  {tab.hasValue && (
-                    <span
-                      className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
-                      style={{ background: 'var(--accent)' }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tab content */}
-          <div className="flex-1 p-5 overflow-y-auto">
-            {activeTab === 'search' && (
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.search')}</label>
-                <input
-                  type="text"
-                  value={filters.search}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  placeholder={t('browseTasks.searchPlaceholder')}
-                  className="input-field w-full px-3 py-2 text-sm"
-                  autoFocus
+            {/* Row 2: from date + to date */}
+            <div className="flex flex-wrap gap-4">
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.fromLabel')}</label>
+                <DatePickerField
+                  value={filters.startFrom}
+                  onChange={(v) => setFilters((prev) => ({ ...prev, startFrom: v }))}
                 />
               </div>
-            )}
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.toLabel')}</label>
+                <DatePickerField
+                  value={filters.startTo}
+                  onChange={(v) => setFilters((prev) => ({ ...prev, startTo: v }))}
+                />
+              </div>
+            </div>
 
-            {activeTab === 'project' && (
-              <div>
+            {/* Row 3: project + issue type + assignee */}
+            <div className="flex flex-wrap gap-4">
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.project')}</label>
                 <select
                   value={filters.project}
@@ -263,50 +213,8 @@ function FilterModal({ initialFilters, projects, issueTypes, statuses, users, on
                   ))}
                 </select>
               </div>
-            )}
 
-            {activeTab === 'status' && (
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.status')}</label>
-                <div className="space-y-0.5">
-                  {statuses.length === 0 && (
-                    <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('browseTasks.loading')}</div>
-                  )}
-                  {statuses.map((status) => {
-                    const checked = filters.statuses.includes(status.name);
-                    return (
-                      <button
-                        key={status.id || status.name}
-                        type="button"
-                        className="w-full px-3 py-2 text-left flex items-center gap-2.5 rounded-lg transition-all duration-150"
-                        style={{ background: checked ? 'var(--accent-bg)' : 'transparent', cursor: 'pointer' }}
-                        onMouseEnter={(e) => { if (!checked) e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                        onMouseLeave={(e) => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
-                        onClick={() => toggleStatus(status.name)}
-                      >
-                        <span
-                          className="flex-shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center"
-                          style={{
-                            border: checked ? 'none' : '1.5px solid var(--border)',
-                            background: checked ? 'var(--accent)' : 'transparent',
-                          }}
-                        >
-                          {checked && (
-                            <svg className="w-2.5 h-2.5" fill="none" stroke="white" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </span>
-                        <span className="text-sm" style={{ color: checked ? 'var(--accent)' : 'var(--text)' }}>{status.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'issueType' && (
-              <div>
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.issueType')}</label>
                 <select
                   value={filters.issueType}
@@ -319,10 +227,8 @@ function FilterModal({ initialFilters, projects, issueTypes, statuses, users, on
                   ))}
                 </select>
               </div>
-            )}
 
-            {activeTab === 'assignee' && (
-              <div>
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.assignee')}</label>
                 <select
                   value={filters.assignee}
@@ -335,26 +241,50 @@ function FilterModal({ initialFilters, projects, issueTypes, statuses, users, on
                   ))}
                 </select>
               </div>
-            )}
+            </div>
 
-            {activeTab === 'startDate' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.fromLabel')}</label>
-                  <DatePickerField
-                    value={filters.startFrom}
-                    onChange={(v) => setFilters((prev) => ({ ...prev, startFrom: v }))}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.toLabel')}</label>
-                  <DatePickerField
-                    value={filters.startTo}
-                    onChange={(v) => setFilters((prev) => ({ ...prev, startTo: v }))}
-                  />
-                </div>
+            {/* Status multiselect (unchanged) */}
+            <div className="w-full">
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.status')}</label>
+              <div className="flex flex-wrap gap-1.5">
+                {statuses.length === 0 && (
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('browseTasks.loading')}</div>
+                )}
+                {statuses.map((status) => {
+                  const checked = filters.statuses.includes(status.name);
+                  return (
+                    <button
+                      key={status.id || status.name}
+                      type="button"
+                      className="px-3 py-1.5 text-left flex items-center gap-2 rounded-lg transition-all duration-150"
+                      style={{
+                        background: checked ? 'var(--accent-bg)' : 'transparent',
+                        border: `1px solid ${checked ? 'var(--accent-border)' : 'var(--border)'}`,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => { if (!checked) e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                      onMouseLeave={(e) => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
+                      onClick={() => toggleStatus(status.name)}
+                    >
+                      <span
+                        className="flex-shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center"
+                        style={{
+                          border: checked ? 'none' : '1.5px solid var(--border)',
+                          background: checked ? 'var(--accent)' : 'transparent',
+                        }}
+                      >
+                        {checked && (
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="white" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="text-sm whitespace-nowrap" style={{ color: checked ? 'var(--accent)' : 'var(--text)' }}>{status.name}</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -409,7 +339,7 @@ export default function BrowseTasksPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [users, setUsers] = useState<JiraUser[]>([]);
   const [filters, setFilters] = useState<BrowseFilters>(EMPTY_FILTERS);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [fullIssues, setFullIssues] = useState<Record<string, JiraIssue>>({});
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
   const [showLogWorkModal, setShowLogWorkModal] = useState(false);
@@ -474,7 +404,6 @@ export default function BrowseTasksPage() {
 
   const handleSubmitFilters = useCallback((f: BrowseFilters) => {
     setFilters(f);
-    setShowFilterModal(false);
     void fetchTasks(f);
   }, [fetchTasks]);
 
@@ -524,7 +453,7 @@ export default function BrowseTasksPage() {
   }, []);
 
   const handleRefreshTask = useCallback(async (issue: JiraIssue) => {
-    const [_, refreshedIssueRes] = await Promise.all([
+    const [, refreshedIssueRes] = await Promise.all([
       fetchTasks(filters),
       fetch(`/api/jira/issue?key=${encodeURIComponent(issue.key)}`),
     ]);
@@ -565,7 +494,9 @@ export default function BrowseTasksPage() {
         </h2>
         <button
           type="button"
-          onClick={() => setShowFilterModal((v) => !v)}
+          onClick={() => setShowFilterPanel((v) => !v)}
+          aria-expanded={showFilterPanel}
+          aria-controls="browse-tasks-filter-panel"
           className="flex items-center gap-2 text-sm"
           style={{
             padding: '6px 14px',
@@ -595,8 +526,28 @@ export default function BrowseTasksPage() {
               {activeFilterCount}
             </span>
           )}
+          <svg
+            className="w-3.5 h-3.5 transition-transform duration-200"
+            style={{ transform: showFilterPanel ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </button>
       </div>
+
+      <FilterPanel
+        initialFilters={filters}
+        projects={projects}
+        issueTypes={issueTypes}
+        statuses={statuses}
+        users={users}
+        expanded={showFilterPanel}
+        onSubmit={handleSubmitFilters}
+      />
 
       {error && (
         <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
@@ -620,18 +571,6 @@ export default function BrowseTasksPage() {
           />
         )}
       </div>
-
-      {showFilterModal && (
-        <FilterModal
-          initialFilters={filters}
-          projects={projects}
-          issueTypes={issueTypes}
-          statuses={statuses}
-          users={users}
-          onClose={() => setShowFilterModal(false)}
-          onSubmit={handleSubmitFilters}
-        />
-      )}
 
       <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} onLogWork={handleOpenLogWork} onRefresh={handleRefreshTask} />
 

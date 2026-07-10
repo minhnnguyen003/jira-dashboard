@@ -16,6 +16,7 @@ test('readProfileFromRequestCookieHeader parses display name and email from cook
     {
       displayName: 'Minh Nguyen',
       email: 'minh@etc.vn',
+      avatarUrl: '',
     },
   );
 });
