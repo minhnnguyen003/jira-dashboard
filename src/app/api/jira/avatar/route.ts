@@ -54,10 +54,13 @@ export async function GET(request: NextRequest) {
       headers: getAuthHeaders(),
     });
 
+    const rawContentType = response.headers['content-type'];
+    const contentType = typeof rawContentType === 'string' ? rawContentType : 'image/png';
+
     return new NextResponse(Buffer.from(response.data), {
       status: 200,
       headers: {
-        'Content-Type': response.headers['content-type'] || 'image/png',
+        'Content-Type': contentType,
         'Cache-Control': 'private, max-age=86400',
       },
     });
