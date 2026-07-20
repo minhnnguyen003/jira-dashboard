@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useLanguage } from '@/lib/i18n';
 
 interface JiraUserOption {
@@ -40,9 +40,19 @@ const LIGHT = {
   textMuted: '#6b7285',
 };
 
+function subscribeToTheme(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+function getIsLightTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
 export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModalProps) {
   const { t } = useLanguage();
-  const [isLight, setIsLight] = useState(false);
+  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<JiraUserOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,19 +60,7 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
   const [selectedUser, setSelectedUser] = useState<JiraUserOption | null>(null);
 
   useEffect(() => {
-    const syncTheme = () => setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    syncTheme();
-
-    const observer = new MutationObserver(syncTheme);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     if (!query.trim()) {
-      setUsers([]);
-      setLoading(false);
-      setError(null);
       return;
     }
 
@@ -137,8 +135,14 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
             type="text"
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
+              const nextQuery = e.target.value;
+              setQuery(nextQuery);
               setSelectedUser(null);
+              if (!nextQuery.trim()) {
+                setUsers([]);
+                setLoading(false);
+                setError(null);
+              }
             }}
             placeholder={t('createTask.assigneePlaceholder')}
             className="w-full rounded-2xl px-4 py-3 text-sm outline-none transition-all"

@@ -147,7 +147,6 @@ export default function CreateTaskPage() {
 
   useEffect(() => {
     if (!form.assignee || form.assignee.length < 1) {
-      setUsers([]);
       return;
     }
     const fetchUsers = async () => {
@@ -169,12 +168,6 @@ export default function CreateTaskPage() {
 
   useEffect(() => {
     if (!form.project) {
-      setEpics([]);
-      setParentTasks([]);
-      setEpicFilter('');
-      setComponentFilter('');
-      setSprints([]);
-      setSprintFilter('');
       return;
     }
     const fetchEpics = async () => {
@@ -212,8 +205,6 @@ export default function CreateTaskPage() {
 
   useEffect(() => {
     if (!form.project) {
-      setComponents([]);
-      setComponentFilter('');
       return;
     }
     const fetchComponents = async () => {
@@ -236,8 +227,6 @@ export default function CreateTaskPage() {
 
   useEffect(() => {
     if (!form.project) {
-      setSprints([]);
-      setSprintFilter('');
       return;
     }
     const fetchSprints = async () => {
@@ -344,6 +333,23 @@ export default function CreateTaskPage() {
         originalEstimate: '1d',
         remainingEstimate: '1d',
       });
+      setUsers([]);
+      setUserLoading(false);
+      setEpics([]);
+      setEpicLoading(false);
+      setEpicError(null);
+      setParentTasks([]);
+      setParentTaskLoading(false);
+      setParentTaskError(null);
+      setComponents([]);
+      setComponentLoading(false);
+      setComponentError(null);
+      setSprints([]);
+      setSprintLoading(false);
+      setSprintError(null);
+      setEpicFilter('');
+      setComponentFilter('');
+      setSprintFilter('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
     } finally {
@@ -468,7 +474,31 @@ export default function CreateTaskPage() {
                       onMouseLeave={(e) => { if (form.project !== p.key) e.currentTarget.style.background = 'transparent'; }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setForm({ ...form, project: p.key });
+                        if (form.project !== p.key) {
+                          setForm({
+                            ...form,
+                            project: p.key,
+                            parent: '',
+                            customFieldSprint: '',
+                            customFieldEpic: '',
+                            components: [],
+                          });
+                          setEpics([]);
+                          setEpicLoading(false);
+                          setEpicError(null);
+                          setParentTasks([]);
+                          setParentTaskLoading(false);
+                          setParentTaskError(null);
+                          setComponents([]);
+                          setComponentLoading(false);
+                          setComponentError(null);
+                          setSprints([]);
+                          setSprintLoading(false);
+                          setSprintError(null);
+                          setEpicFilter('');
+                          setComponentFilter('');
+                          setSprintFilter('');
+                        }
                         setShowProjectDropdown(false);
                         setProjectFilter('');
                       }}
@@ -538,7 +568,16 @@ export default function CreateTaskPage() {
                       onMouseLeave={(e) => { if (form.issuetype !== type) e.currentTarget.style.background = 'transparent'; }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setForm({ ...form, issuetype: type });
+                        if (form.issuetype !== type) {
+                          setForm({ ...form, issuetype: type, parent: '', customFieldEpic: '' });
+                          setEpics([]);
+                          setEpicLoading(false);
+                          setEpicError(null);
+                          setParentTasks([]);
+                          setParentTaskLoading(false);
+                          setParentTaskError(null);
+                          setEpicFilter('');
+                        }
                         setShowIssueTypeDropdown(false);
                         setIssueTypeFilter('');
                       }}
@@ -803,8 +842,13 @@ export default function CreateTaskPage() {
                 type="text"
                 value={form.assignee}
                 onChange={(e) => {
-                  setForm({ ...form, assignee: e.target.value });
+                  const nextAssignee = e.target.value;
+                  setForm({ ...form, assignee: nextAssignee });
                   setShowUserDropdown(true);
+                  if (!nextAssignee) {
+                    setUsers([]);
+                    setUserLoading(false);
+                  }
                 }}
                 onFocus={() => { if (form.assignee) setShowUserDropdown(true); }}
                 placeholder={t('createTask.assigneePlaceholder')}

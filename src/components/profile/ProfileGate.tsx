@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import ProfileSetupModal from './ProfileSetupModal';
 import { readProfileFromDocumentCookie, writeProfileToDocumentCookie } from '@/lib/profile-cookie.js';
 
@@ -14,19 +14,20 @@ interface ProfileState {
   avatarUrl: string;
 }
 
-export default function ProfileGate({ children }: ProfileGateProps) {
-  const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
-  const [profile, setProfile] = useState<ProfileState | null>(null);
+const subscribeToHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerHydratedSnapshot = () => false;
 
-  useEffect(() => {
-    const existingProfile = readProfileFromDocumentCookie();
-    setProfile(existingProfile);
-    setHasCheckedProfile(true);
-  }, []);
+export default function ProfileGate({ children }: ProfileGateProps) {
+  const hasCheckedProfile = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot,
+  );
+  const profile = hasCheckedProfile ? readProfileFromDocumentCookie() : null;
 
   const handleSelectProfile = (nextProfile: ProfileState) => {
     writeProfileToDocumentCookie(nextProfile);
-    setProfile(nextProfile);
     window.location.reload();
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n';
@@ -131,28 +131,51 @@ const menuItems: MenuItem[] = [
   },
 ];
 
+const THEME_CHANGE_EVENT = 'jira-dashboard-theme-change';
+
+function getStoredTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'dark';
+  return window.localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+}
+
+function subscribeToTheme(onStoreChange: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === 'theme') onStoreChange();
+  };
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function getActiveMenuLabels(pathname: string) {
+  return new Set(
+    menuItems
+      .filter((item) => item.subItems?.some((sub) => pathname === sub.href))
+      .map((item) => item.label),
+  );
+}
+
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const [isDark, setIsDark] = useState(true);
-  const [isDarkSet, setIsDarkSet] = useState(false);
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+  const isDark = useSyncExternalStore(subscribeToTheme, getStoredTheme, () => 'dark') === 'dark';
+  const pathname = usePathname();
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => getActiveMenuLabels(pathname));
+  const [expandedPathname, setExpandedPathname] = useState(pathname);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const pathname = usePathname();
   const { language, toggleLanguage, t } = useLanguage();
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem('theme');
-    if (stored === 'light' || stored === 'dark') {
-      setIsDark(stored !== 'light');
-    }
-    setIsDarkSet(true);
-  }, []);
+  if (expandedPathname !== pathname) {
+    setExpandedPathname(pathname);
+    setExpandedMenus((previous) => new Set([...previous, ...getActiveMenuLabels(pathname)]));
+  }
 
   useEffect(() => {
-    if (!isDarkSet) return;
     document.getElementById('main-content')?.style.setProperty('margin-left', collapsed ? '56px' : '224px');
-  }, [collapsed, isDarkSet]);
+  }, [collapsed]);
 
   useEffect(() => {
     if (isDark) {
@@ -164,7 +187,6 @@ export default function Sidebar() {
 
   const toggleTheme = () => {
     const next = !isDark;
-    setIsDark(next);
     if (next) {
       document.documentElement.removeAttribute('data-theme');
       localStorage.setItem('theme', 'dark');
@@ -172,6 +194,7 @@ export default function Sidebar() {
       document.documentElement.setAttribute('data-theme', 'light');
       localStorage.setItem('theme', 'light');
     }
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   };
 
   const toggleExpand = (label: string) => {
@@ -185,22 +208,6 @@ export default function Sidebar() {
       return next;
     });
   };
-
-  // Auto-expand when on a sub-item page
-  useEffect(() => {
-    menuItems.forEach((item) => {
-      if (item.subItems) {
-        const hasActiveSub = item.subItems.some((sub) => pathname === sub.href);
-        if (hasActiveSub) {
-          setExpandedMenus((prev) => {
-            const next = new Set(prev);
-            next.add(item.label);
-            return next;
-          });
-        }
-      }
-    });
-  }, [pathname]);
 
   const hasSubItems = (item: MenuItem) => item.subItems && item.subItems.length > 0;
   const isMenuExpanded = (label: string) => expandedMenus.has(label);

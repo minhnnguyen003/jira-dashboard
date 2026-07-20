@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 
 type Language = 'vi' | 'en';
 type TranslationKey = keyof typeof translations.vi;
@@ -489,22 +489,36 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('vi');
+const LANGUAGE_CHANGE_EVENT = 'jira-dashboard-language-change';
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem('language');
-    const init = stored === 'vi' || stored === 'en' ? stored : 'vi';
-    setLanguageState(init);
-  }, []);
+function getStoredLanguage(): Language {
+  if (typeof window === 'undefined') return 'vi';
+  const stored = window.localStorage.getItem('language');
+  return stored === 'vi' || stored === 'en' ? stored : 'vi';
+}
+
+function subscribeToLanguage(onStoreChange: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === 'language') onStoreChange();
+  };
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(LANGUAGE_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(LANGUAGE_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const language = useSyncExternalStore<Language>(subscribeToLanguage, getStoredLanguage, () => 'vi');
 
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
 
   const setLanguage = (nextLanguage: Language) => {
-    setLanguageState(nextLanguage);
     localStorage.setItem('language', nextLanguage);
+    window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
     document.documentElement.lang = nextLanguage;
   };
 

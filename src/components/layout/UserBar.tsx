@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { readProfileFromDocumentCookie } from '@/lib/profile-cookie.js';
 import { getUserInitials } from '@/lib/userInitials.js';
@@ -17,21 +17,21 @@ interface ProfileState {
   avatarUrl: string;
 }
 
+const subscribeToHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerHydratedSnapshot = () => false;
+
 export default function UserBar({ collapsed, onLogout }: UserBarProps) {
   const { t } = useLanguage();
-  const [profile, setProfile] = useState<ProfileState | null>(null);
+  const hasHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot,
+  );
+  const profile: ProfileState | null = hasHydrated ? readProfileFromDocumentCookie() : null;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProfile(readProfileFromDocumentCookie());
-  }, []);
-
-  useEffect(() => {
-    setAvatarFailed(false);
-  }, [profile?.avatarUrl]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -49,7 +49,7 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
   }
 
   const avatarSrc = buildJiraAvatarProxyUrl(profile.avatarUrl);
-  const showImage = Boolean(avatarSrc) && !avatarFailed;
+  const showImage = Boolean(avatarSrc) && failedAvatarUrl !== avatarSrc;
 
   const avatar = (
     <span
@@ -71,7 +71,7 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
           width={32}
           height={32}
           style={{ width: 32, height: 32, objectFit: 'cover' }}
-          onError={() => setAvatarFailed(true)}
+          onError={() => setFailedAvatarUrl(avatarSrc)}
         />
       ) : (
         getUserInitials(profile.displayName)

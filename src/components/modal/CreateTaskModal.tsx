@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useLanguage } from '@/lib/i18n';
 
 interface Project { key: string; name: string; }
@@ -63,32 +63,33 @@ function FieldLabel({ label, c }: { label: string; c: typeof DARK }) {
   );
 }
 
-export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
-  const { t } = useLanguage();
-  const [isLight, setIsLight] = useState(false);
-
-  useEffect(() => {
-    setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    const observer = new MutationObserver(() => {
-      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-
-  const c = isLight ? LIGHT : DARK;
-
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const todayMorning = `${todayStr}T08:00`;
-  const todayEvening = `${todayStr}T17:00`;
-
-  const [form, setForm] = useState<TaskForm>({
+function createInitialFormState(now = new Date()): TaskForm {
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return {
     project: '', summary: '', description: '', issuetype: 'Task', priority: '',
     assignee: '', labels: '', parent: '', customFieldSprint: '',
     originalEstimate: '1d', remainingEstimate: '1d',
-    startDate: todayMorning, dueDate: todayEvening,
-  });
+    startDate: `${todayStr}T08:00`, dueDate: `${todayStr}T17:00`,
+  };
+}
+
+function subscribeToTheme(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+function getIsLightTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
+  const { t } = useLanguage();
+  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
+
+  const c = isLight ? LIGHT : DARK;
+
+  const [form, setForm] = useState<TaskForm>(() => createInitialFormState());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -96,7 +97,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
   // Data
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectLoading, setProjectLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [userLoading, setUserLoading] = useState(false);
   const [epics, setEpics] = useState<Epic[]>([]);
@@ -135,14 +136,13 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
   }, [onClose]);
 
   useEffect(() => {
-    setProjectLoading(true);
     fetch('/api/jira/projects')
       .then((r) => r.json()).then(setProjects).catch(() => {})
       .finally(() => setProjectLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!form.assignee) { setUsers([]); return; }
+    if (!form.assignee) return;
     const timer = setTimeout(() => {
       setUserLoading(true);
       fetch(`/api/jira/users?query=${encodeURIComponent(form.assignee)}`)
@@ -153,7 +153,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
   }, [form.assignee]);
 
   useEffect(() => {
-    if (!form.project) { setEpics([]); setParentTasks([]); setEpicFilter(''); return; }
+    if (!form.project) return;
     const timer = setTimeout(() => {
       if (form.issuetype === 'Sub-task') {
         setParentTaskLoading(true);
@@ -171,7 +171,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
   }, [form.project, form.issuetype, epicFilter]);
 
   useEffect(() => {
-    if (!form.project) { setSprints([]); setSprintFilter(''); return; }
+    if (!form.project) return;
     const timer = setTimeout(() => {
       setSprintLoading(true);
       fetch(`/api/jira/sprints?project=${encodeURIComponent(form.project)}`)
@@ -227,13 +227,23 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
       if (!res.ok) throw new Error(data.error || `API error: ${res.status}`);
       setCreatedKey(data.key);
       setSuccess(true);
-      setForm({ project: '', summary: '', description: '', issuetype: 'Task', priority: '', assignee: '', labels: '', parent: '', customFieldSprint: '', originalEstimate: '1d', remainingEstimate: '1d', startDate: todayMorning, dueDate: todayEvening });
+      setForm(createInitialFormState());
+      setUsers([]);
+      setUserLoading(false);
+      setEpics([]);
+      setEpicLoading(false);
+      setParentTasks([]);
+      setParentTaskLoading(false);
+      setSprints([]);
+      setSprintLoading(false);
+      setEpicFilter('');
+      setSprintFilter('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
     } finally {
       setLoading(false);
     }
-  }, [form, todayMorning, todayEvening]);
+  }, [form]);
 
   const dropdownStyle: React.CSSProperties = {
     background: 'var(--dropdown-bg)',
@@ -320,7 +330,21 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                         style={{ color: form.project === p.key ? 'var(--accent)' : 'var(--text)', background: form.project === p.key ? 'var(--accent-bg)' : 'transparent', cursor: 'pointer' }}
                         onMouseEnter={(e) => { if (form.project !== p.key) e.currentTarget.style.background = 'var(--surface-hover)'; }}
                         onMouseLeave={(e) => { if (form.project !== p.key) e.currentTarget.style.background = 'transparent'; }}
-                        onClick={() => { setForm({ ...form, project: p.key }); setShowProjectDropdown(false); setProjectFilter(''); }}
+                        onClick={() => {
+                          if (form.project !== p.key) {
+                            setForm({ ...form, project: p.key, parent: '', customFieldSprint: '' });
+                            setEpics([]);
+                            setEpicLoading(false);
+                            setParentTasks([]);
+                            setParentTaskLoading(false);
+                            setSprints([]);
+                            setSprintLoading(false);
+                            setEpicFilter('');
+                            setSprintFilter('');
+                          }
+                          setShowProjectDropdown(false);
+                          setProjectFilter('');
+                        }}
                       >
                         <span className="text-sm truncate">{p.name}</span>
                         <span className="text-xs font-mono flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{p.key}</span>
@@ -351,7 +375,18 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                         style={{ color: form.issuetype === type ? 'var(--accent)' : 'var(--text)', background: form.issuetype === type ? 'var(--accent-bg)' : 'transparent', cursor: 'pointer' }}
                         onMouseEnter={(e) => { if (form.issuetype !== type) e.currentTarget.style.background = 'var(--surface-hover)'; }}
                         onMouseLeave={(e) => { if (form.issuetype !== type) e.currentTarget.style.background = 'transparent'; }}
-                        onClick={() => { setForm({ ...form, issuetype: type }); setShowIssueTypeDropdown(false); setIssueTypeFilter(''); }}
+                        onClick={() => {
+                          if (form.issuetype !== type) {
+                            setForm({ ...form, issuetype: type, parent: '' });
+                            setEpics([]);
+                            setEpicLoading(false);
+                            setParentTasks([]);
+                            setParentTaskLoading(false);
+                            setEpicFilter('');
+                          }
+                          setShowIssueTypeDropdown(false);
+                          setIssueTypeFilter('');
+                        }}
                       >{type}</button>
                     ))}
                   </div>
@@ -399,7 +434,15 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                 <FieldLabel label={t('createTask.assigneeLabel')} c={c} />
                 <div style={{ position: 'relative' }}>
                   <input type="text" value={form.assignee}
-                    onChange={(e) => { setForm({ ...form, assignee: e.target.value }); setShowUserDropdown(true); }}
+                    onChange={(e) => {
+                      const nextAssignee = e.target.value;
+                      setForm({ ...form, assignee: nextAssignee });
+                      setShowUserDropdown(true);
+                      if (!nextAssignee) {
+                        setUsers([]);
+                        setUserLoading(false);
+                      }
+                    }}
                     onFocus={() => { if (form.assignee) setShowUserDropdown(true); }}
                     placeholder={t('createTask.assigneePlaceholder')}
                     className="input-field w-full px-3 py-2 text-sm"

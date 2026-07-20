@@ -1,7 +1,7 @@
 'use client';
 
 import { useLanguage } from '@/lib/i18n';
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useSyncExternalStore } from 'react';
 
 interface LogWorkModalProps {
   issueKey: string;
@@ -52,9 +52,19 @@ function getDefaultStarted(): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function subscribeToTheme(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+function getIsLightTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
 export default function LogWorkModal({ issueKey, issueSummary, originalEstimate, onClose, onSuccess }: LogWorkModalProps) {
   const { t } = useLanguage();
-  const [isLight, setIsLight] = useState(false);
+  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
   const [timeSpent, setTimeSpent] = useState('');
   const [dateStarted, setDateStarted] = useState(getDefaultStarted());
   const [remainingEstimateType, setRemainingEstimateType] = useState<RemainingEstimateType>('auto');
@@ -65,15 +75,6 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
   const modalRef = useRef<HTMLDivElement>(null);
 
   const formattedOriginalEstimate = useMemo(() => formatRemainingEstimate(originalEstimate), [originalEstimate]);
-
-  useEffect(() => {
-    setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    const observer = new MutationObserver(() => {
-      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
 
   const c = isLight ? LIGHT : DARK;
 

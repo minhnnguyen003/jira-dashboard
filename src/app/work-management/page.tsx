@@ -94,11 +94,7 @@ function toVNDate(dateStr: string): string {
 
 function DatePickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const pickerRef = useRef<HTMLDivElement>(null);
-  const [displayValue, setDisplayValue] = useState(toVNDate(value));
-
-  useEffect(() => {
-    setDisplayValue(toVNDate(value));
-  }, [value]);
+  const displayValue = toVNDate(value);
 
   const handlePick = useCallback(() => {
     const input = pickerRef.current?.querySelector('input') as HTMLInputElement | null;
