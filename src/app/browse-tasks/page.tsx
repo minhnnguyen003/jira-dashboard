@@ -5,6 +5,7 @@ import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
 import AssigneeCombobox from '@/components/form/AssigneeCombobox';
+import { consumeBrowseUsers, loadBrowseUsers } from './browseUsersLoader.js';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
 
@@ -348,7 +349,7 @@ export default function BrowseTasksPage() {
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    const usersController = new AbortController();
+    let usersActive = true;
 
     fetch('/api/jira/projects')
       .then((r) => r.json())
@@ -362,21 +363,15 @@ export default function BrowseTasksPage() {
       .then((r) => r.json())
       .then((data) => setStatuses(Array.isArray(data) ? data : []))
       .catch(() => {});
-    fetch('/api/jira/users?all=true', { signal: usersController.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Users API error: ${response.status}`);
-        return response.json();
-      })
-      .then((data) => setUsers(Array.isArray(data) ? data : []))
-      .catch((fetchError: unknown) => {
-        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
-        setUsersError(true);
-      })
-      .finally(() => {
-        if (!usersController.signal.aborted) setUsersLoading(false);
-      });
+    void consumeBrowseUsers(loadBrowseUsers(), () => usersActive, {
+      onSuccess: setUsers,
+      onError: () => setUsersError(true),
+      onSettled: () => setUsersLoading(false),
+    });
 
-    return () => usersController.abort();
+    return () => {
+      usersActive = false;
+    };
   }, []);
 
   const fetchTasks = useCallback(async (f: BrowseFilters) => {
