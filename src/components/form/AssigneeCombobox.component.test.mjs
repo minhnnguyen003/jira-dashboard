@@ -29,16 +29,12 @@ test('reconciles the full external selection snapshot without remounting', () =>
   assert.ok(chooseBody.indexOf('setInputState(nextInputState)') < chooseBody.indexOf('onChange(nextInputState.snapshot.value)'));
 });
 
-test('guards blur callbacks with a generation invalidated by external commits and interactions', () => {
-  assert.match(source, /useLayoutEffect/);
-  assert.match(source, /selectedIdentity/);
-  assert.match(source, /selectedDisplayName/);
-  assert.match(source, /blurGeneration\.current \+= 1/);
-  assert.match(source, /runAssigneeBlurIfCurrent/);
-
-  const timeoutBody = source.match(/window\.setTimeout\(\(\) => \{([\s\S]*?)\n    \}, 0\)/)?.[1];
-  assert.ok(timeoutBody);
-  assert.ok(timeoutBody.indexOf('runAssigneeBlurIfCurrent') < timeoutBody.indexOf('resolveAssigneeInput'));
+test('normalizes blur synchronously so apply sees the committed assignee value', () => {
+  assert.doesNotMatch(source, /useLayoutEffect/);
+  assert.doesNotMatch(source, /blurGeneration/);
+  assert.doesNotMatch(source, /invalidatePendingBlur/);
+  assert.doesNotMatch(source, /setTimeout/);
+  assert.match(source, /resolveAssigneeInput\(users, visibleQuery, selected\)/);
 });
 
 test('keeps focus on primary mouse down and selects through click', () => {
@@ -63,4 +59,15 @@ test('renders live messages outside a conditional options listbox', () => {
   const optionMapStart = source.indexOf('filtered.map', listboxStart);
   assert.ok(listboxStart >= 0 && optionMapStart > listboxStart);
   assert.doesNotMatch(source.slice(listboxStart, optionMapStart), /role="status"|role="alert"/);
+});
+
+test('invalidates a controlled selection immediately when the user edits the text', () => {
+  assert.match(source, /const nextInputState = editAssigneeInputState\(externalSnapshot, nextQuery\)/);
+  assert.match(source, /if \(nextInputState\.snapshot\.value !== externalSnapshot\.value\) onChange\(nextInputState\.snapshot\.value\)/);
+});
+
+test('shows and scrolls the active keyboard option into view', () => {
+  assert.match(source, /optionRefs/);
+  assert.match(source, /scrollIntoView\(\{ block: 'nearest' \}\)/);
+  assert.match(source, /style=\{index === highlighted \? \{ background: 'var\(--surface-hover\)' \} : undefined\}/);
 });

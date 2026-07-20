@@ -2,6 +2,14 @@ function normalize(value) {
   return String(value || '').trim().toLocaleLowerCase();
 }
 
+/**
+ * @typedef {{ name: string, displayName: string, email: string, avatarUrl?: string }} AssigneeUser
+ */
+
+/**
+ * @param {AssigneeUser[]} users
+ * @param {string} query
+ */
 export function filterAssigneeUsers(users, query) {
   const needle = normalize(query);
   if (!needle) return users;
@@ -10,9 +18,15 @@ export function filterAssigneeUsers(users, query) {
     .some((value) => normalize(value).includes(needle)));
 }
 
-export function resolveAssigneeInput(users, query) {
+/**
+ * @param {AssigneeUser[]} users
+ * @param {string} query
+ * @param {AssigneeUser | null} [selected]
+ */
+export function resolveAssigneeInput(users, query, selected = null) {
   const needle = normalize(query);
   if (!needle) return null;
+  if (selected && needle === normalize(selected.displayName)) return selected;
 
   return users.find((user) => normalize(user.name) === needle || normalize(user.email) === needle) || null;
 }
@@ -42,20 +56,14 @@ export function reconcileAssigneeInputState(state, snapshot) {
 }
 
 export function editAssigneeInputState(snapshot, query) {
-  return { query, snapshot };
+  if (query === snapshot.displayName) {
+    return { query, snapshot };
+  }
+
+  return { query, snapshot: createAssigneeInputSnapshot('', null) };
 }
 
 export function chooseAssigneeInputState(user) {
   const value = user ? user.email || user.name : '';
   return createAssigneeInputState(createAssigneeInputSnapshot(value, user));
-}
-
-export function isAssigneeBlurGenerationCurrent(scheduledGeneration, currentGeneration) {
-  return scheduledGeneration === currentGeneration;
-}
-
-export function runAssigneeBlurIfCurrent(scheduledGeneration, currentGeneration, apply) {
-  if (!isAssigneeBlurGenerationCurrent(scheduledGeneration, currentGeneration)) return false;
-  apply();
-  return true;
 }

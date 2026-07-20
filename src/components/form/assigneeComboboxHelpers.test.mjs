@@ -26,6 +26,20 @@ test('falls back to All for partial, unknown, or empty input', () => {
   assert.equal(resolveAssigneeInput(users, '  '), null);
 });
 
+test('keeps the current selection when blur sees its unchanged display name', () => {
+  assert.equal(resolveAssigneeInput(users, users[0].displayName, users[0]), users[0]);
+});
+
+test('edits invalidate the committed selection immediately so apply falls back to All', () => {
+  const snapshot = helpers.createAssigneeInputSnapshot(users[0].email, users[0]);
+  const state = helpers.editAssigneeInputState(snapshot, `${users[0].displayName}x`);
+
+  assert.equal(state.snapshot.value, '');
+  assert.equal(state.snapshot.identity, '');
+  assert.equal(state.snapshot.displayName, '');
+  assert.equal(state.query, `${users[0].displayName}x`);
+});
+
 test('syncs the selected display name when users populate asynchronously for the same value', () => {
   assert.equal(typeof helpers.createAssigneeInputSnapshot, 'function');
   assert.equal(typeof helpers.createAssigneeInputState, 'function');
@@ -62,17 +76,4 @@ test('keeps an optimistic choice stable across the batched controlled-value comm
 
   assert.strictEqual(helpers.reconcileAssigneeInputState(chosenState, committedSnapshot), chosenState);
   assert.equal(chosenState.query, users[1].displayName);
-});
-
-test('rejects stale blur generations after an external commit or newer interaction', () => {
-  assert.equal(typeof helpers.isAssigneeBlurGenerationCurrent, 'function');
-  assert.equal(typeof helpers.runAssigneeBlurIfCurrent, 'function');
-  let applied = 0;
-
-  assert.equal(helpers.isAssigneeBlurGenerationCurrent(1, 2), false);
-  assert.equal(helpers.isAssigneeBlurGenerationCurrent(2, 2), true);
-  assert.equal(helpers.runAssigneeBlurIfCurrent(1, 2, () => { applied += 1; }), false);
-  assert.equal(applied, 0);
-  assert.equal(helpers.runAssigneeBlurIfCurrent(2, 2, () => { applied += 1; }), true);
-  assert.equal(applied, 1);
 });

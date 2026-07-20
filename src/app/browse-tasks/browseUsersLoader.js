@@ -14,9 +14,8 @@ export function createBrowseUsersLoader(requestUsers) {
     if (!usersPromise) {
       usersPromise = Promise.resolve()
         .then(requestUsers)
-        .catch((error) => {
+        .finally(() => {
           usersPromise = null;
-          throw error;
         });
     }
 

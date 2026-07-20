@@ -23,6 +23,21 @@ test('shares one in-flight users request and result between concurrent consumers
   assert.equal(fetchCount, 1);
 });
 
+test('clears a resolved users request so a later page mount refreshes the directory', async () => {
+  let fetchCount = 0;
+  const loadUsers = createBrowseUsersLoader(async () => {
+    fetchCount += 1;
+    return users;
+  });
+
+  const first = await loadUsers();
+  const second = await loadUsers();
+
+  assert.strictEqual(first, users);
+  assert.strictEqual(second, users);
+  assert.equal(fetchCount, 2);
+});
+
 test('clears a rejected users request so a later mount can retry', async () => {
   let fetchCount = 0;
   const failure = new Error('users unavailable');

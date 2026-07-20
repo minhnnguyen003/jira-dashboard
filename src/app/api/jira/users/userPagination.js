@@ -32,7 +32,7 @@ export function normalizeJiraUsers(rawUsers) {
   });
 }
 
-export async function fetchAllJiraUsers(fetchPage, pageSize = 100, maxPages = 1000) {
+export async function fetchAllJiraUsers(fetchPage, pageSize = 100, maxPages = 1000, options = {}) {
   if (!Number.isSafeInteger(maxPages) || maxPages < 1) {
     throw new RangeError('maxPages must be a positive integer');
   }
@@ -43,7 +43,7 @@ export async function fetchAllJiraUsers(fetchPage, pageSize = 100, maxPages = 10
   let dataPages = 0;
 
   while (true) {
-    const rawPage = await fetchPage({ startAt, maxResults: pageSize });
+    const rawPage = await fetchPage({ startAt, maxResults: pageSize, signal: options.signal });
     const page = normalizeJiraUsers(rawPage);
 
     if (rawPage.length === 0) {

@@ -99,6 +99,19 @@ test('rejects a non-finite page cap so callers cannot disable the safety limit',
   );
 });
 
+test('passes an abort signal through every Jira page request', async () => {
+  const signal = AbortSignal.timeout(1000);
+  const seenSignals = [];
+  const pages = [[{ name: 'minh' }], []];
+
+  await fetchAllJiraUsers(async ({ signal: pageSignal }) => {
+    seenSignals.push(pageSignal);
+    return pages.shift();
+  }, 1, 2, { signal });
+
+  assert.deepEqual(seenSignals, [signal, signal]);
+});
+
 test('normalizes a malformed avatar URL to an empty string', () => {
   assert.deepEqual(
     normalizeJiraUsers([{ name: 'minh', avatarUrls: { '48x48': { href: 'minh.png' } } }]),

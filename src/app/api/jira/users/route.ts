@@ -3,9 +3,27 @@ import axios from 'axios';
 import https from 'https';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 import { fetchAllJiraUsers, normalizeJiraUsers } from './userPagination.js';
+import {
+  createCachedUsersDirectory,
+  createUsersRateLimiter,
+  getUsersRequestClientKey,
+  isSameOriginUsersRequest,
+  USERS_DIRECTORY_CACHE_TTL_MS,
+  USERS_DIRECTORY_DEADLINE_MS,
+  USERS_DIRECTORY_MAX_PAGES,
+  USERS_DIRECTORY_PAGE_SIZE,
+  USERS_DIRECTORY_RATE_LIMIT,
+  USERS_DIRECTORY_RATE_LIMIT_WINDOW_MS,
+} from './usersRequestGuards.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
+});
+
+const usersDirectoryCache = createCachedUsersDirectory({ ttlMs: USERS_DIRECTORY_CACHE_TTL_MS });
+const usersRateLimiter = createUsersRateLimiter({
+  limit: USERS_DIRECTORY_RATE_LIMIT,
+  windowMs: USERS_DIRECTORY_RATE_LIMIT_WINDOW_MS,
 });
 
 function getAuthHeaders(): Record<string, string> {
@@ -49,17 +67,37 @@ export async function GET(request: NextRequest) {
     });
 
     if (all) {
-      const users = await fetchAllJiraUsers(async ({ startAt, maxResults }: { startAt: number; maxResults: number }) => {
-        const response = await axiosInstance.get('/rest/api/2/user/search', {
-          params: {
-            username: '',
-            search: '',
-            startAt: String(startAt),
-            maxResults: String(maxResults),
-          },
-          headers: getAuthHeaders(),
-        });
-        return response.data;
+      if (!isSameOriginUsersRequest(request)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      if (!usersRateLimiter.isAllowed(getUsersRequestClientKey(request))) {
+        return NextResponse.json({ error: 'Too many users directory requests' }, { status: 429 });
+      }
+
+      const users = await usersDirectoryCache.get(async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), USERS_DIRECTORY_DEADLINE_MS);
+
+        try {
+          return await fetchAllJiraUsers(async (
+            { startAt, maxResults, signal }: { startAt: number; maxResults: number; signal?: AbortSignal },
+          ) => {
+            const response = await axiosInstance.get('/rest/api/2/user/search', {
+              params: {
+                username: '',
+                search: '',
+                startAt: String(startAt),
+                maxResults: String(maxResults),
+              },
+              headers: getAuthHeaders(),
+              signal,
+            });
+            return response.data;
+          }, USERS_DIRECTORY_PAGE_SIZE, USERS_DIRECTORY_MAX_PAGES, { signal: controller.signal });
+        } finally {
+          clearTimeout(timeout);
+        }
       });
 
       return NextResponse.json(users);

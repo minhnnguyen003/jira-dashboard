@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import {
   chooseAssigneeInputState,
@@ -10,7 +10,6 @@ import {
   filterAssigneeUsers,
   reconcileAssigneeInputState,
   resolveAssigneeInput,
-  runAssigneeBlurIfCurrent,
 } from './assigneeComboboxHelpers.js';
 
 export interface AssigneeOption {
@@ -35,14 +34,11 @@ interface InputProps extends Props {
 function AssigneeComboboxInput({ users, value, loading, error, onChange, selected }: InputProps) {
   const { t } = useLanguage();
   const listboxId = useId();
-  const selectedIdentity = selected ? selected.email || selected.name : '';
-  const selectedDisplayName = selected?.displayName || '';
   const externalSnapshot = createAssigneeInputSnapshot(value, selected);
   const [inputState, setInputState] = useState(() => createAssigneeInputState(externalSnapshot));
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-  const blurTimeout = useRef<number | null>(null);
-  const blurGeneration = useRef(0);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const reconciledInputState = reconcileAssigneeInputState(inputState, externalSnapshot);
   if (reconciledInputState !== inputState) {
     setInputState(reconciledInputState);
@@ -56,21 +52,7 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
   const hasOptions = open && available.length > 0;
   const activeOption = hasOptions ? available[highlighted] : undefined;
 
-  const invalidatePendingBlur = useCallback(() => {
-    blurGeneration.current += 1;
-    if (blurTimeout.current !== null) {
-      window.clearTimeout(blurTimeout.current);
-      blurTimeout.current = null;
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    invalidatePendingBlur();
-    return invalidatePendingBlur;
-  }, [invalidatePendingBlur, value, selectedIdentity, selectedDisplayName]);
-
   const choose = (user: AssigneeOption | null) => {
-    invalidatePendingBlur();
     const nextInputState = chooseAssigneeInputState(user);
     setInputState(nextInputState);
     setOpen(false);
@@ -78,16 +60,14 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
   };
 
   const handleBlur = () => {
-    invalidatePendingBlur();
-    const scheduledGeneration = blurGeneration.current;
-    blurTimeout.current = window.setTimeout(() => {
-      runAssigneeBlurIfCurrent(scheduledGeneration, blurGeneration.current, () => {
-        blurTimeout.current = null;
-        const exact = resolveAssigneeInput(users, visibleQuery);
-        choose(exact);
-      });
-    }, 0);
+    const exact = resolveAssigneeInput(users, visibleQuery, selected);
+    choose(exact);
   };
+
+  useEffect(() => {
+    if (!hasOptions) return;
+    optionRefs.current[highlighted]?.scrollIntoView({ block: 'nearest' });
+  }, [hasOptions, highlighted]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -101,7 +81,6 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
       event.preventDefault();
       choose(available[highlighted]);
     } else if (event.key === 'Escape') {
-      invalidatePendingBlur();
       setOpen(false);
       setInputState(createAssigneeInputState(externalSnapshot));
     }
@@ -120,16 +99,15 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
         placeholder={t('browseTasks.assigneePlaceholder')}
         className="input-field w-full px-3 py-2 text-sm"
         onFocus={() => {
-          invalidatePendingBlur();
           setOpen(true);
         }}
         onChange={(event) => {
           const nextQuery = event.target.value;
-          invalidatePendingBlur();
-          setInputState(editAssigneeInputState(externalSnapshot, nextQuery));
+          const nextInputState = editAssigneeInputState(externalSnapshot, nextQuery);
+          setInputState(nextInputState);
           setHighlighted(0);
           setOpen(true);
-          if (!nextQuery) onChange('');
+          if (nextInputState.snapshot.value !== externalSnapshot.value) onChange(nextInputState.snapshot.value);
         }}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
@@ -178,6 +156,9 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
         >
           {filtered.map((user, index) => (
             <button
+              ref={(element) => {
+                optionRefs.current[index] = element;
+              }}
               id={`${listboxId}-${index}`}
               key={user.email || user.name}
               type="button"
@@ -185,6 +166,7 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
               aria-selected={index === highlighted}
               tabIndex={-1}
               className="flex w-full flex-col rounded-lg px-3 py-2 text-left"
+              style={index === highlighted ? { background: 'var(--surface-hover)' } : undefined}
               onMouseEnter={() => setHighlighted(index)}
               onMouseDown={(event) => {
                 if (event.button === 0) event.preventDefault();
