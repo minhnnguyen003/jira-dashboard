@@ -3,8 +3,16 @@
 import { JiraIssue, JiraTransition, JiraTransitionField, JiraEditMeta } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
 import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
-import { createTaskDetailState, getDescriptionPlaceholder, runIssueRefresh } from './taskDetailModal.helpers.js';
-import { useEffect, useState, useRef, useCallback, useSyncExternalStore, type ChangeEvent } from 'react';
+import {
+  createLatestRequestScope,
+  createTaskDetailState,
+  getDescriptionPlaceholder,
+  getTaskDetailTransitionView,
+  resetTaskDetailStateForIssue,
+  resolveTaskDetailStateAfterSave,
+  runIssueRefresh,
+} from './taskDetailModal.helpers.js';
+import { useEffect, useState, useRef, useCallback, useMemo, useSyncExternalStore, type ChangeEvent } from 'react';
 
 interface TaskDetailModalProps {
   issue: JiraIssue | null;
@@ -14,10 +22,26 @@ interface TaskDetailModalProps {
 }
 
 interface TaskDetailEditState {
+  sourceIssue: JiraIssue;
   initialValues: Record<string, string>;
   initialDatetimeValues: Record<string, string>;
   editedValues: Record<string, string | null>;
   datetimeValues: Record<string, string>;
+}
+
+interface TaskDetailTransitionState {
+  loadedFor: JiraIssue | null;
+  transitions: JiraTransition[];
+  loadError: string | null;
+  selectedTransition: JiraTransition | null;
+  transitionFieldsData: Record<string, JiraTransitionField>;
+  fieldValues: Record<string, string | null>;
+  transitioning: boolean;
+  actionError: string | null;
+}
+
+interface TaskDetailTransitionView extends Omit<TaskDetailTransitionState, 'loadedFor'> {
+  loading: boolean;
 }
 
 function formatTime(seconds: number | null): string {
@@ -349,14 +373,37 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
 
   // Transition state
   const [showTransitionMenu, setShowTransitionMenu] = useState(false);
-  const [transitions, setTransitions] = useState<JiraTransition[]>([]);
-  const [transitionLoading, setTransitionLoading] = useState(true);
-  const [transitionError, setTransitionError] = useState<string | null>(null);
-  const [transitioning, setTransitioning] = useState(false);
-  const [selectedTransition, setSelectedTransition] = useState<JiraTransition | null>(null);
-  const [transitionFieldsData, setTransitionFieldsData] = useState<Record<string, JiraTransitionField>>({});
-  const [fieldValues, setFieldValues] = useState<Record<string, string | null>>({});
+  const [transitionState, setTransitionState] = useState<TaskDetailTransitionState>({
+    loadedFor: null,
+    transitions: [],
+    loadError: null,
+    selectedTransition: null,
+    transitionFieldsData: {},
+    fieldValues: {},
+    transitioning: false,
+    actionError: null,
+  });
+  const transitionView = getTaskDetailTransitionView(transitionState, issue) as TaskDetailTransitionView;
+  const {
+    loading: transitionLoading,
+    transitions,
+    loadError: transitionLoadError,
+    selectedTransition,
+    transitionFieldsData,
+    fieldValues,
+    transitioning,
+    actionError: transitionActionError,
+  } = transitionView;
   const transitionMenuRef = useRef<HTMLDivElement>(null);
+  const transitionActionScope = useMemo(() => createLatestRequestScope(issue), [issue]);
+  const saveRequestScope = useMemo(() => createLatestRequestScope(issue), [issue]);
+
+  useEffect(() => {
+    return () => {
+      transitionActionScope.dispose();
+      saveRequestScope.dispose();
+    };
+  }, [saveRequestScope, transitionActionScope]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -369,9 +416,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    fetch(`/api/jira/transitions?key=${encodeURIComponent(issue.key)}`)
+    fetch(`/api/jira/transitions?key=${encodeURIComponent(issue.key)}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
           const data = await response.json().catch(() => null);
@@ -380,25 +427,36 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         return response.json();
       })
       .then((data) => {
-        if (!cancelled) {
-          setTransitionError(null);
-          setTransitions(data.transitions || []);
+        if (!controller.signal.aborted) {
+          setTransitionState({
+            loadedFor: issue,
+            transitions: data.transitions || [],
+            loadError: null,
+            selectedTransition: null,
+            transitionFieldsData: {},
+            fieldValues: {},
+            transitioning: false,
+            actionError: null,
+          });
         }
       })
       .catch((error) => {
-        if (!cancelled) {
-          setTransitionError(error instanceof Error ? error.message : 'Failed to fetch transitions');
-          setTransitions([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setTransitionLoading(false);
+        if (!controller.signal.aborted) {
+          setTransitionState({
+            loadedFor: issue,
+            transitions: [],
+            loadError: error instanceof Error ? error.message : 'Failed to fetch transitions',
+            selectedTransition: null,
+            transitionFieldsData: {},
+            fieldValues: {},
+            transitioning: false,
+            actionError: null,
+          });
         }
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [issue]);
 
@@ -408,10 +466,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   }, [issue]);
 
   const handleTransitionSelect = useCallback((transition: JiraTransition) => {
-    if (!issue) return;
-
-    setSelectedTransition(transition);
-    setTransitionFieldsData(transition.fields || {});
     setShowTransitionMenu(false);
 
     const initialValues: Record<string, string | null> = {};
@@ -432,19 +486,32 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         initialValues[fieldId] = '';
       }
     }
-    setFieldValues(initialValues);
+    setTransitionState((previous) => previous.loadedFor === issue ? {
+      ...previous,
+      selectedTransition: transition,
+      transitionFieldsData: transition.fields || {},
+      fieldValues: initialValues,
+      transitioning: false,
+      actionError: null,
+    } : previous);
   }, [issue]);
 
   const handleTransitionSubmit = useCallback(async () => {
-    if (!selectedTransition || !issue) return;
-    setTransitioning(true);
-    setTransitionError(null);
+    if (!selectedTransition) return;
+    const request = transitionActionScope.begin();
+    setTransitionState((previous) => previous.loadedFor === issue ? {
+      ...previous,
+      transitioning: true,
+      actionError: null,
+    } : previous);
+
     try {
       const transitionPayload = buildTransitionFields(selectedTransition.fields, fieldValues, issue.fields);
 
       const response = await fetch('/api/jira/transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: request.signal,
         body: JSON.stringify({
           key: issue.key,
           transitionId: selectedTransition.id,
@@ -457,20 +524,49 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         throw new Error(data?.error || `Transition failed (${response.status})`);
       }
 
+      if (!request.isCurrent()) return;
       await runIssueRefresh(issue, onRefresh);
-      setSelectedTransition(null);
-      setTransitionFieldsData({});
-      setFieldValues({});
+      if (!request.isCurrent()) return;
+      setTransitionState((previous) => previous.loadedFor === issue ? {
+        ...previous,
+        selectedTransition: null,
+        transitionFieldsData: {},
+        fieldValues: {},
+        actionError: null,
+      } : previous);
     } catch (err) {
-      setTransitionError(err instanceof Error ? err.message : 'Transition failed');
+      if (!request.isCurrent()) return;
+      setTransitionState((previous) => previous.loadedFor === issue ? {
+        ...previous,
+        actionError: err instanceof Error ? err.message : 'Transition failed',
+      } : previous);
     } finally {
-      setTransitioning(false);
+      if (request.isCurrent()) {
+        setTransitionState((previous) => previous.loadedFor === issue ? {
+          ...previous,
+          transitioning: false,
+        } : previous);
+      }
     }
-  }, [selectedTransition, issue, fieldValues, onRefresh]);
+  }, [fieldValues, issue, onRefresh, selectedTransition, transitionActionScope]);
 
   const updateField = useCallback((fieldId: string, value: string) => {
-    setFieldValues(prev => ({ ...prev, [fieldId]: value }));
-  }, []);
+    setTransitionState((previous) => previous.loadedFor === issue ? {
+      ...previous,
+      fieldValues: { ...previous.fieldValues, [fieldId]: value },
+    } : previous);
+  }, [issue]);
+
+  const clearTransitionSelection = useCallback(() => {
+    setTransitionState((previous) => previous.loadedFor === issue ? {
+      ...previous,
+      selectedTransition: null,
+      transitionFieldsData: {},
+      fieldValues: {},
+      transitioning: false,
+      actionError: null,
+    } : previous);
+  }, [issue]);
 
   const c = isLight ? LIGHT : DARK;
   const ChipComp = isLight ? LightChip : Chip;
@@ -526,6 +622,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   const handleSave = useCallback(async () => {
     if (saving) return;
 
+    const request = saveRequestScope.begin();
     const previousEditState = editState;
 
     try {
@@ -536,33 +633,40 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       setSaving(true);
 
       if (Object.keys(updateFields).length === 0) {
-        setEditState(createTaskDetailState(issue));
+        setEditState((previous) => resetTaskDetailStateForIssue(previous, issue));
         return;
       }
 
       const res = await fetch('/api/jira/update-issue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: request.signal,
         body: JSON.stringify({ key: issue.key, fields: updateFields }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Update failed');
       }
+
+      if (!request.isCurrent()) return;
       const refreshedIssue = await runIssueRefresh(issue, onRefresh);
-      setEditState(createTaskDetailState(refreshedIssue));
+      if (!request.isCurrent()) return;
+      setEditState(resolveTaskDetailStateAfterSave(previousEditState, refreshedIssue));
     } catch (err) {
+      if (!request.isCurrent()) return;
       setSaveError(err instanceof Error ? err.message : 'Unknown error');
       setEditMode(true);
       setEditState(previousEditState);
     } finally {
-      setSaving(false);
+      if (request.isCurrent()) {
+        setSaving(false);
+      }
     }
-  }, [buildUpdateFields, editState, issue, onRefresh, saving]);
+  }, [buildUpdateFields, editState, issue, onRefresh, saveRequestScope, saving]);
 
   const cancelEditing = useCallback(() => {
     setEditMode(false);
-    setEditState(createTaskDetailState(issue));
+    setEditState((previous) => resetTaskDetailStateForIssue(previous, issue));
   }, [issue]);
 
   useEffect(() => {
@@ -572,7 +676,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         if (editMode) {
           cancelEditing();
         } else {
-          setEditState(createTaskDetailState(issue));
+          setEditState((previous) => resetTaskDetailStateForIssue(previous, issue));
           setEditMode(true);
         }
       } else if (e.key === 'F10' && editMode) {
@@ -849,8 +953,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   </div>
                   {transitionLoading ? (
                     <div className="p-3 text-center text-xs" style={{ color: c.textMuted }}>{t('jql.loading')}</div>
-                  ) : transitionError ? (
-                    <div className="p-3 text-xs" style={{ color: '#f29096', background: 'rgba(242,144,150,0.15)' }}>{transitionError}</div>
+                  ) : transitionLoadError ? (
+                    <div className="p-3 text-xs" style={{ color: '#f29096', background: 'rgba(242,144,150,0.15)' }}>{transitionLoadError}</div>
                   ) : transitions.length === 0 ? (
                     <div className="p-3 text-xs" style={{ color: c.textMuted }}>No transitions available</div>
                   ) : (
@@ -1182,7 +1286,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       {selectedTransition && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedTransition(null); setTransitionFieldsData({}); setFieldValues({}); } }}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) clearTransitionSelection(); }}
           style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
         >
           <div
@@ -1199,7 +1303,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: c.borderRow }}>
               <h3 className="text-base font-bold" style={{ color: c.textPrimary }}>{t('dialog.confirmTransition')}</h3>
               <button
-                onClick={() => { setSelectedTransition(null); setTransitionFieldsData({}); setFieldValues({}); }}
+                onClick={clearTransitionSelection}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
                 style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)' }}
               >
@@ -1325,9 +1429,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   </div>
                 )}
 
-                {transitionError && (
+                {transitionActionError && (
                   <div className="p-3 rounded-lg text-xs mb-4" style={{ background: 'rgba(242,144,150,0.15)', color: '#f29096', border: '1px solid rgba(242,144,150,0.3)' }}>
-                    {transitionError}
+                    {transitionActionError}
                   </div>
                 )}
               </div>
@@ -1335,7 +1439,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0" style={{ borderColor: c.borderRow }}>
               <button
-                onClick={() => { setSelectedTransition(null); setTransitionFieldsData({}); setFieldValues({}); }}
+                onClick={clearTransitionSelection}
                 className="px-4 py-2 text-sm rounded-xl"
                 style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
               >

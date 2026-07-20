@@ -35,6 +35,56 @@ function formatDateTimeForInput(dateStr) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+export function createLatestRequestScope(owner) {
+  let currentController = null;
+  let disposed = false;
+
+  return {
+    owner,
+    begin() {
+      currentController?.abort();
+      const controller = new AbortController();
+      currentController = controller;
+      if (disposed) controller.abort();
+
+      return {
+        signal: controller.signal,
+        isCurrent: () => !disposed && currentController === controller && !controller.signal.aborted,
+      };
+    },
+    dispose() {
+      disposed = true;
+      currentController?.abort();
+    },
+  };
+}
+
+export function getTaskDetailTransitionView(transitionState, issue) {
+  if (transitionState.loadedFor !== issue) {
+    return {
+      loading: true,
+      transitions: [],
+      loadError: null,
+      selectedTransition: null,
+      transitionFieldsData: {},
+      fieldValues: {},
+      transitioning: false,
+      actionError: null,
+    };
+  }
+
+  return {
+    loading: false,
+    transitions: transitionState.transitions,
+    loadError: transitionState.loadError,
+    selectedTransition: transitionState.selectedTransition,
+    transitionFieldsData: transitionState.transitionFieldsData,
+    fieldValues: transitionState.fieldValues,
+    transitioning: transitionState.transitioning,
+    actionError: transitionState.actionError,
+  };
+}
+
 export function createTaskDetailState(issue) {
   const fields = issue?.fields ?? {};
   const startDate = fields.customfield_10300 || fields.startdate;
@@ -46,6 +96,7 @@ export function createTaskDetailState(issue) {
   };
 
   return {
+    sourceIssue: issue,
     initialValues: {
       summary: fields.summary || '',
       priority: fields.priority?.name || '',
@@ -71,6 +122,35 @@ export function createTaskDetailState(issue) {
   };
 }
 
+export function resolveTaskDetailStateAfterSave(editState, refreshedIssue) {
+  if (refreshedIssue && typeof refreshedIssue.key === 'string' && refreshedIssue.fields && typeof refreshedIssue.fields === 'object') {
+    return createTaskDetailState(refreshedIssue);
+  }
+
+  const initialDatetimeValues = { ...editState.datetimeValues };
+  return {
+    sourceIssue: editState.sourceIssue,
+    initialValues: { ...editState.initialValues, ...editState.editedValues },
+    initialDatetimeValues,
+    editedValues: {},
+    datetimeValues: { ...initialDatetimeValues },
+  };
+}
+
+export function resetTaskDetailStateForIssue(editState, issue) {
+  if (editState.sourceIssue !== issue) {
+    return createTaskDetailState(issue);
+  }
+
+  return {
+    sourceIssue: editState.sourceIssue,
+    initialValues: { ...editState.initialValues },
+    initialDatetimeValues: { ...editState.initialDatetimeValues },
+    editedValues: {},
+    datetimeValues: { ...editState.initialDatetimeValues },
+  };
+}
+
 export function getDescriptionPlaceholder(description, language) {
   if (typeof description === 'string' && description.trim()) {
     return '';
@@ -81,9 +161,9 @@ export function getDescriptionPlaceholder(description, language) {
 
 export async function runIssueRefresh(issue, onRefresh) {
   if (!issue || typeof onRefresh !== 'function') {
-    return issue ?? null;
+    return null;
   }
 
   const refreshedIssue = await onRefresh(issue);
-  return refreshedIssue ?? issue;
+  return refreshedIssue ?? null;
 }
