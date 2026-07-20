@@ -4,15 +4,17 @@ import { JiraIssue, JiraTransition, JiraTransitionField, JiraEditMeta } from '@/
 import { useLanguage } from '@/lib/i18n';
 import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
 import {
+  canCloseTaskDetail,
   createLatestRequestScope,
   createTaskDetailState,
   getDescriptionPlaceholder,
+  getTaskDetailMutationOwner,
   getTaskDetailTransitionView,
   resetTaskDetailStateForIssue,
   resolveTaskDetailStateAfterSave,
   runIssueRefresh,
 } from './taskDetailModal.helpers.js';
-import { useEffect, useState, useRef, useCallback, useMemo, useSyncExternalStore, type ChangeEvent } from 'react';
+import { useEffect, useState, useRef, useCallback, useSyncExternalStore, type ChangeEvent } from 'react';
 
 interface TaskDetailModalProps {
   issue: JiraIssue | null;
@@ -36,7 +38,6 @@ interface TaskDetailTransitionState {
   selectedTransition: JiraTransition | null;
   transitionFieldsData: Record<string, JiraTransitionField>;
   fieldValues: Record<string, string | null>;
-  transitioning: boolean;
   actionError: string | null;
 }
 
@@ -380,9 +381,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     selectedTransition: null,
     transitionFieldsData: {},
     fieldValues: {},
-    transitioning: false,
     actionError: null,
   });
+  const [transitionMutationPending, setTransitionMutationPending] = useState(false);
   const transitionView = getTaskDetailTransitionView(transitionState, issue) as TaskDetailTransitionView;
   const {
     loading: transitionLoading,
@@ -391,12 +392,20 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     selectedTransition,
     transitionFieldsData,
     fieldValues,
-    transitioning,
     actionError: transitionActionError,
   } = transitionView;
+  const transitioning = transitionMutationPending;
+  const canClose = canCloseTaskDetail({ saving, transitioning });
   const transitionMenuRef = useRef<HTMLDivElement>(null);
-  const transitionActionScope = useMemo(() => createLatestRequestScope(issue), [issue]);
-  const saveRequestScope = useMemo(() => createLatestRequestScope(issue), [issue]);
+  const [mutationScopes] = useState(() => {
+    const owner = getTaskDetailMutationOwner(issue);
+    return {
+      transition: createLatestRequestScope(owner),
+      save: createLatestRequestScope(owner),
+    };
+  });
+  const transitionActionScope = mutationScopes.transition;
+  const saveRequestScope = mutationScopes.save;
 
   useEffect(() => {
     return () => {
@@ -435,7 +444,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             selectedTransition: null,
             transitionFieldsData: {},
             fieldValues: {},
-            transitioning: false,
             actionError: null,
           });
         }
@@ -449,7 +457,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             selectedTransition: null,
             transitionFieldsData: {},
             fieldValues: {},
-            transitioning: false,
             actionError: null,
           });
         }
@@ -491,7 +498,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       selectedTransition: transition,
       transitionFieldsData: transition.fields || {},
       fieldValues: initialValues,
-      transitioning: false,
       actionError: null,
     } : previous);
   }, [issue]);
@@ -499,9 +505,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   const handleTransitionSubmit = useCallback(async () => {
     if (!selectedTransition) return;
     const request = transitionActionScope.begin();
+    setTransitionMutationPending(true);
     setTransitionState((previous) => previous.loadedFor === issue ? {
       ...previous,
-      transitioning: true,
       actionError: null,
     } : previous);
 
@@ -542,10 +548,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       } : previous);
     } finally {
       if (request.isCurrent()) {
-        setTransitionState((previous) => previous.loadedFor === issue ? {
-          ...previous,
-          transitioning: false,
-        } : previous);
+        setTransitionMutationPending(false);
       }
     }
   }, [fieldValues, issue, onRefresh, selectedTransition, transitionActionScope]);
@@ -558,15 +561,15 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   }, [issue]);
 
   const clearTransitionSelection = useCallback(() => {
+    if (!canClose) return;
     setTransitionState((previous) => previous.loadedFor === issue ? {
       ...previous,
       selectedTransition: null,
       transitionFieldsData: {},
       fieldValues: {},
-      transitioning: false,
       actionError: null,
     } : previous);
-  }, [issue]);
+  }, [canClose, issue]);
 
   const c = isLight ? LIGHT : DARK;
   const ChipComp = isLight ? LightChip : Chip;
@@ -651,7 +654,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       if (!request.isCurrent()) return;
       const refreshedIssue = await runIssueRefresh(issue, onRefresh);
       if (!request.isCurrent()) return;
-      setEditState(resolveTaskDetailStateAfterSave(previousEditState, refreshedIssue));
+      setEditState(resolveTaskDetailStateAfterSave(previousEditState, refreshedIssue, updateFields));
     } catch (err) {
       if (!request.isCurrent()) return;
       setSaveError(err instanceof Error ? err.message : 'Unknown error');
@@ -669,8 +672,18 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     setEditState((previous) => resetTaskDetailStateForIssue(previous, issue));
   }, [issue]);
 
+  const requestClose = useCallback(() => {
+    if (!canClose) return;
+    if (editMode) {
+      cancelEditing();
+    } else {
+      onClose();
+    }
+  }, [canClose, cancelEditing, editMode, onClose]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!canClose && (e.key === 'F2' || e.key === 'F10')) return;
       if (e.key === 'F2' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         if (editMode) {
@@ -686,7 +699,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [cancelEditing, editMode, handleSave, issue]);
+  }, [canClose, cancelEditing, editMode, handleSave, issue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -736,11 +749,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onMouseDown={(e) => {
         if (e.target !== e.currentTarget) return;
-        if (editMode) {
-          cancelEditing();
-        } else {
-          onClose();
-        }
+        requestClose();
       }}
       style={{
         background: c.backdropBlur,
@@ -853,9 +862,15 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               {t('dialog.link')}
             </a>
             <button
-              onClick={() => { if (editMode) { cancelEditing(); } else { onClose(); } }}
+              onClick={requestClose}
+              disabled={!canClose}
               className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-              style={{ color: c.textMuted, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)' }}
+              style={{
+                color: c.textMuted,
+                background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)',
+                cursor: canClose ? 'pointer' : 'not-allowed',
+                opacity: canClose ? 1 : 0.5,
+              }}
               title={t('dialog.close')}
             >
               ✕
@@ -1304,8 +1319,14 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <h3 className="text-base font-bold" style={{ color: c.textPrimary }}>{t('dialog.confirmTransition')}</h3>
               <button
                 onClick={clearTransitionSelection}
+                disabled={!canClose}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-                style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)' }}
+                style={{
+                  color: c.textMuted,
+                  background: 'rgba(255,255,255,0.06)',
+                  cursor: canClose ? 'pointer' : 'not-allowed',
+                  opacity: canClose ? 1 : 0.5,
+                }}
               >
                 ✕
               </button>
@@ -1440,8 +1461,15 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0" style={{ borderColor: c.borderRow }}>
               <button
                 onClick={clearTransitionSelection}
+                disabled={!canClose}
                 className="px-4 py-2 text-sm rounded-xl"
-                style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                style={{
+                  color: c.textMuted,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  cursor: canClose ? 'pointer' : 'not-allowed',
+                  opacity: canClose ? 1 : 0.5,
+                }}
               >
                 Cancel
               </button>

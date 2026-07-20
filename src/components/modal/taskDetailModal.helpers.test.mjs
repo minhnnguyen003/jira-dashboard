@@ -2,14 +2,36 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  canCloseTaskDetail,
   createLatestRequestScope,
   createTaskDetailState,
   getDescriptionPlaceholder,
+  getTaskDetailMutationOwner,
   getTaskDetailTransitionView,
   resetTaskDetailStateForIssue,
   resolveTaskDetailStateAfterSave,
   runIssueRefresh,
 } from './taskDetailModal.helpers.js';
+
+test('getTaskDetailMutationOwner keeps mutation ownership across same-key issue objects', () => {
+  const originalIssue = { key: 'ABC-123' };
+  const refreshedIssue = { key: 'ABC-123' };
+  const scope = createLatestRequestScope(getTaskDetailMutationOwner(originalIssue));
+  const request = scope.begin();
+
+  assert.equal(getTaskDetailMutationOwner(originalIssue), 'ABC-123');
+  assert.equal(getTaskDetailMutationOwner(refreshedIssue), 'ABC-123');
+  assert.equal(scope.owner, getTaskDetailMutationOwner(refreshedIssue));
+  assert.equal(request.isCurrent(), true);
+  assert.notEqual(getTaskDetailMutationOwner({ key: 'XYZ-9' }), getTaskDetailMutationOwner(originalIssue));
+});
+
+test('canCloseTaskDetail stays false throughout save or transition mutation', () => {
+  assert.equal(canCloseTaskDetail({ saving: false, transitioning: false }), true);
+  assert.equal(canCloseTaskDetail({ saving: true, transitioning: false }), false);
+  assert.equal(canCloseTaskDetail({ saving: false, transitioning: true }), false);
+  assert.equal(canCloseTaskDetail({ saving: true, transitioning: true }), false);
+});
 
 test('createLatestRequestScope invalidates superseded and disposed requests', () => {
   const scope = createLatestRequestScope();
@@ -37,7 +59,6 @@ test('getTaskDetailTransitionView hides state loaded for another issue object wi
     selectedTransition,
     transitionFieldsData: { resolution: { required: true } },
     fieldValues: { resolution: 'Done' },
-    transitioning: true,
     actionError: 'stale submit error',
   };
 
@@ -53,7 +74,6 @@ test('getTaskDetailTransitionView hides state loaded for another issue object wi
   assert.equal(refreshedView.selectedTransition, null);
   assert.deepEqual(refreshedView.transitionFieldsData, {});
   assert.deepEqual(refreshedView.fieldValues, {});
-  assert.equal(refreshedView.transitioning, false);
   assert.equal(refreshedView.actionError, null);
 });
 
@@ -116,29 +136,49 @@ test('createTaskDetailState snapshots editable values and datetime inputs from t
   assert.equal(state.initialValues.labels, 'frontend, urgent');
 });
 
-test('resolveTaskDetailStateAfterSave commits edited values when refresh returns no issue', () => {
+test('resolveTaskDetailStateAfterSave fallback commits only fields present in the sent payload', () => {
   const issue = {
     key: 'ABC-123',
     fields: {
       summary: 'Before save',
+      reporter: { displayName: 'Original reporter' },
+      timeestimate: '7200',
       issuetype: { name: 'Task' },
       customfield_10300: '2026-07-20T09:30:00',
+      customfield_10302: '2026-07-21T17:45:00',
     },
   };
   const state = createTaskDetailState(issue);
-  state.editedValues = { summary: 'Saved summary' };
-  state.datetimeValues = { ...state.datetimeValues, startDate: '2026-07-22T11:15' };
+  state.editedValues = {
+    summary: 'Saved summary',
+    reporter: 'Unsupported reporter edit',
+    timeestimate: '9h',
+  };
+  state.datetimeValues = {
+    ...state.datetimeValues,
+    startDate: '',
+    dueDate: '2026-07-22T11:15',
+  };
+  const sentPayload = {
+    summary: 'Saved summary',
+    customfield_10302: '2026-07-22T11:15:00.000+0700',
+  };
 
-  const committed = resolveTaskDetailStateAfterSave(state, undefined);
+  const committed = resolveTaskDetailStateAfterSave(state, undefined, sentPayload);
 
   assert.equal(committed.initialValues.summary, 'Saved summary');
-  assert.equal(committed.initialDatetimeValues.startDate, '2026-07-22T11:15');
+  assert.equal(committed.initialValues.reporter, 'Original reporter');
+  assert.equal(committed.initialValues.timeestimate, '2h');
+  assert.equal(committed.initialDatetimeValues.startDate, '2026-07-20T09:30');
+  assert.equal(committed.initialDatetimeValues.dueDate, '2026-07-22T11:15');
   assert.deepEqual(committed.editedValues, {});
   assert.deepEqual(committed.datetimeValues, committed.initialDatetimeValues);
 
   const resetForSameIssue = resetTaskDetailStateForIssue(committed, issue);
   assert.equal(resetForSameIssue.initialValues.summary, 'Saved summary');
-  assert.equal(resetForSameIssue.initialDatetimeValues.startDate, '2026-07-22T11:15');
+  assert.equal(resetForSameIssue.initialValues.reporter, 'Original reporter');
+  assert.equal(resetForSameIssue.initialDatetimeValues.startDate, '2026-07-20T09:30');
+  assert.equal(resetForSameIssue.initialDatetimeValues.dueDate, '2026-07-22T11:15');
 });
 
 test('resetTaskDetailStateForIssue replaces the snapshot when the issue object changes', () => {
@@ -158,7 +198,7 @@ test('resolveTaskDetailStateAfterSave uses an actual refreshed issue as the next
   const state = createTaskDetailState(originalIssue);
   state.editedValues = { summary: 'Local saved summary' };
 
-  const committed = resolveTaskDetailStateAfterSave(state, refreshedIssue);
+  const committed = resolveTaskDetailStateAfterSave(state, refreshedIssue, { summary: 'Local saved summary' });
 
   assert.equal(committed.initialValues.summary, 'From Jira');
   assert.deepEqual(committed.editedValues, {});

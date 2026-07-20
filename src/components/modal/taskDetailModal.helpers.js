@@ -35,6 +35,24 @@ function formatDateTimeForInput(dateStr) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function getPayloadName(value) {
+  return value && typeof value === 'object' && typeof value.name === 'string' ? value.name : '';
+}
+
+function getPayloadDateTimeInput(value) {
+  if (typeof value !== 'string') return '';
+  const match = value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  return match?.[1] || '';
+}
+
+export function getTaskDetailMutationOwner(issue) {
+  return issue?.key ?? null;
+}
+
+export function canCloseTaskDetail({ saving, transitioning }) {
+  return !saving && !transitioning;
+}
+
 export function createLatestRequestScope(owner) {
   let currentController = null;
   let disposed = false;
@@ -68,7 +86,6 @@ export function getTaskDetailTransitionView(transitionState, issue) {
       selectedTransition: null,
       transitionFieldsData: {},
       fieldValues: {},
-      transitioning: false,
       actionError: null,
     };
   }
@@ -80,7 +97,6 @@ export function getTaskDetailTransitionView(transitionState, issue) {
     selectedTransition: transitionState.selectedTransition,
     transitionFieldsData: transitionState.transitionFieldsData,
     fieldValues: transitionState.fieldValues,
-    transitioning: transitionState.transitioning,
     actionError: transitionState.actionError,
   };
 }
@@ -122,15 +138,37 @@ export function createTaskDetailState(issue) {
   };
 }
 
-export function resolveTaskDetailStateAfterSave(editState, refreshedIssue) {
+export function resolveTaskDetailStateAfterSave(editState, refreshedIssue, sentFields = {}) {
   if (refreshedIssue && typeof refreshedIssue.key === 'string' && refreshedIssue.fields && typeof refreshedIssue.fields === 'object') {
     return createTaskDetailState(refreshedIssue);
   }
 
-  const initialDatetimeValues = { ...editState.datetimeValues };
+  const initialValues = { ...editState.initialValues };
+  const initialDatetimeValues = { ...editState.initialDatetimeValues };
+  const hasField = (field) => Object.prototype.hasOwnProperty.call(sentFields, field);
+
+  if (hasField('summary')) initialValues.summary = String(sentFields.summary ?? '');
+  if (hasField('priority')) initialValues.priority = getPayloadName(sentFields.priority);
+  if (hasField('assignee')) initialValues.assignee = getPayloadName(sentFields.assignee);
+  if (hasField('description')) initialValues.description = String(sentFields.description ?? '');
+  if (hasField('timeoriginalestimate')) initialValues.timeoriginalestimate = formatTime(sentFields.timeoriginalestimate);
+  if (hasField('timeestimate')) initialValues.timeestimate = formatTime(sentFields.timeestimate);
+
+  const dateFields = [
+    ['customfield_10300', 'startDate'],
+    ['customfield_10302', 'dueDate'],
+    ['resolutiondate', 'resolutionDate'],
+  ];
+  for (const [apiField, stateField] of dateFields) {
+    if (!hasField(apiField)) continue;
+    const inputValue = getPayloadDateTimeInput(sentFields[apiField]);
+    initialDatetimeValues[stateField] = inputValue;
+    initialValues[stateField] = formatDateTime(inputValue);
+  }
+
   return {
     sourceIssue: editState.sourceIssue,
-    initialValues: { ...editState.initialValues, ...editState.editedValues },
+    initialValues,
     initialDatetimeValues,
     editedValues: {},
     datetimeValues: { ...initialDatetimeValues },
