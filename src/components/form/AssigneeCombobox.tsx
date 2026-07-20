@@ -23,38 +23,46 @@ interface InputProps extends Props {
   selected: AssigneeOption | null;
 }
 
-function AssigneeComboboxInput({ users, loading, error, onChange, selected }: InputProps) {
+function AssigneeComboboxInput({ users, value, loading, error, onChange, selected }: InputProps) {
   const { t } = useLanguage();
   const listboxId = useId();
-  const [query, setQuery] = useState(selected?.displayName || '');
+  const [inputState, setInputState] = useState({
+    query: selected?.displayName || '',
+    valueAtLastInteraction: value,
+  });
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const blurTimeout = useRef<number | null>(null);
+  const visibleQuery = inputState.valueAtLastInteraction === value
+    ? inputState.query
+    : selected?.displayName || '';
   const filtered = useMemo<AssigneeOption[]>(
-    () => filterAssigneeUsers(users, query) as AssigneeOption[],
-    [users, query],
+    () => filterAssigneeUsers(users, visibleQuery) as AssigneeOption[],
+    [users, visibleQuery],
   );
   const available = loading || error ? [] : filtered;
-  const activeOption = open ? available[highlighted] : undefined;
+  const hasOptions = open && available.length > 0;
+  const activeOption = hasOptions ? available[highlighted] : undefined;
 
   useEffect(() => () => {
     if (blurTimeout.current !== null) window.clearTimeout(blurTimeout.current);
-  }, []);
+  }, [value]);
 
   const choose = (user: AssigneeOption | null) => {
     if (blurTimeout.current !== null) {
       window.clearTimeout(blurTimeout.current);
       blurTimeout.current = null;
     }
-    onChange(user ? user.email || user.name : '');
-    setQuery(user?.displayName || '');
+    const nextValue = user ? user.email || user.name : '';
+    setInputState({ query: user?.displayName || '', valueAtLastInteraction: nextValue });
     setOpen(false);
+    onChange(nextValue);
   };
 
   const handleBlur = () => {
     blurTimeout.current = window.setTimeout(() => {
       blurTimeout.current = null;
-      const exact = resolveAssigneeInput(users, query);
+      const exact = resolveAssigneeInput(users, visibleQuery);
       choose(exact);
     }, 0);
   };
@@ -72,7 +80,7 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
       choose(available[highlighted]);
     } else if (event.key === 'Escape') {
       setOpen(false);
-      setQuery(selected?.displayName || '');
+      setInputState({ query: selected?.displayName || '', valueAtLastInteraction: value });
     }
   };
 
@@ -82,16 +90,16 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
         role="combobox"
         aria-label={t('browseTasks.tab.assignee')}
         aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls={listboxId}
+        aria-expanded={hasOptions}
+        aria-controls={hasOptions ? listboxId : undefined}
         aria-activedescendant={activeOption ? `${listboxId}-${highlighted}` : undefined}
-        value={query}
+        value={visibleQuery}
         placeholder={t('browseTasks.assigneePlaceholder')}
         className="input-field w-full px-3 py-2 text-sm"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           const nextQuery = event.target.value;
-          setQuery(nextQuery);
+          setInputState({ query: nextQuery, valueAtLastInteraction: value });
           setHighlighted(0);
           setOpen(true);
           if (!nextQuery) onChange('');
@@ -100,7 +108,40 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
         onKeyDown={handleKeyDown}
       />
 
-      {open && (
+      {open && loading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute z-50 mt-1 w-full rounded-xl px-3 py-2 text-sm"
+          style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--border)' }}
+        >
+          {t('browseTasks.assigneeLoading')}
+        </div>
+      )}
+
+      {open && !loading && error && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="absolute z-50 mt-1 w-full rounded-xl px-3 py-2 text-sm"
+          style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--border)' }}
+        >
+          {t('browseTasks.assigneeError')}
+        </div>
+      )}
+
+      {open && !loading && !error && filtered.length === 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute z-50 mt-1 w-full rounded-xl px-3 py-2 text-sm"
+          style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--border)' }}
+        >
+          {t('browseTasks.assigneeEmpty')}
+        </div>
+      )}
+
+      {hasOptions && (
         <div
           id={listboxId}
           role="listbox"
@@ -108,19 +149,7 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
           className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-xl p-1"
           style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--border)' }}
         >
-          {loading ? (
-            <div role="status" className="px-3 py-2 text-sm">
-              {t('browseTasks.assigneeLoading')}
-            </div>
-          ) : error ? (
-            <div role="alert" className="px-3 py-2 text-sm">
-              {t('browseTasks.assigneeError')}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div role="status" className="px-3 py-2 text-sm">
-              {t('browseTasks.assigneeEmpty')}
-            </div>
-          ) : filtered.map((user, index) => (
+          {filtered.map((user, index) => (
             <button
               id={`${listboxId}-${index}`}
               key={user.email || user.name}
@@ -131,9 +160,9 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
               className="flex w-full flex-col rounded-lg px-3 py-2 text-left"
               onMouseEnter={() => setHighlighted(index)}
               onMouseDown={(event) => {
-                event.preventDefault();
-                choose(user);
+                if (event.button === 0) event.preventDefault();
               }}
+              onClick={() => choose(user)}
             >
               <span className="text-sm">{user.displayName}</span>
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -149,7 +178,6 @@ function AssigneeComboboxInput({ users, loading, error, onChange, selected }: In
 
 export default function AssigneeCombobox(props: Props) {
   const selected = props.users.find((user) => (user.email || user.name) === props.value) || null;
-  const syncKey = `${props.value}\u0000${selected?.displayName || ''}`;
 
-  return <AssigneeComboboxInput key={syncKey} {...props} selected={selected} />;
+  return <AssigneeComboboxInput {...props} selected={selected} />;
 }

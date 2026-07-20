@@ -14,9 +14,40 @@ test('exposes accessible combobox and listbox semantics', () => {
   assert.match(source, /resolveAssigneeInput/);
 });
 
-test('coordinates option clicks and external resets with pending blur resolution', () => {
-  assert.match(source, /onMouseDown=/);
-  assert.match(source, /event\.preventDefault\(\)/);
+test('syncs external values without remounting and still cleans up pending blur resolution', () => {
+  assert.doesNotMatch(source, /key=\{syncKey\}/);
+  assert.doesNotMatch(source, /\bsyncKey\b/);
+  assert.match(source, /valueAtLastInteraction/);
+  assert.match(source, /visibleQuery/);
   assert.match(source, /clearTimeout/);
-  assert.match(source, /key=\{syncKey\}/);
+  assert.match(source, /\}, \[value\]\);/);
+  assert.match(source, /setInputState\(\{ query: nextQuery, valueAtLastInteraction: value \}\)/);
+
+  const chooseBody = source.match(/const choose = \(user: AssigneeOption \| null\) => \{([\s\S]*?)\n  \};/)?.[1];
+  assert.ok(chooseBody);
+  assert.ok(chooseBody.indexOf('valueAtLastInteraction: nextValue') < chooseBody.indexOf('onChange(nextValue)'));
+});
+
+test('keeps focus on primary mouse down and selects through click', () => {
+  const mouseDownBody = source.match(/onMouseDown=\{\(event\) => \{([\s\S]*?)\}\}/)?.[1];
+  assert.ok(mouseDownBody);
+  assert.match(mouseDownBody, /event\.button === 0/);
+  assert.match(mouseDownBody, /event\.preventDefault\(\)/);
+  assert.doesNotMatch(mouseDownBody, /choose\(/);
+  assert.match(source, /onClick=\{\(\) => choose\(user\)\}/);
+});
+
+test('renders live messages outside a conditional options listbox', () => {
+  assert.match(source, /const hasOptions/);
+  assert.match(source, /const activeOption = hasOptions \?/);
+  assert.match(source, /aria-controls=\{hasOptions \? listboxId : undefined\}/);
+  assert.match(source, /\{hasOptions && \(/);
+  assert.match(source, /role="status"\s+aria-live="polite"/);
+  assert.match(source, /role="alert"\s+aria-live="assertive"/);
+  assert.match(source, /\{open && !loading && error && \(/);
+
+  const listboxStart = source.indexOf('role="listbox"');
+  const optionMapStart = source.indexOf('filtered.map', listboxStart);
+  assert.ok(listboxStart >= 0 && optionMapStart > listboxStart);
+  assert.doesNotMatch(source.slice(listboxStart, optionMapStart), /role="status"|role="alert"/);
 });
