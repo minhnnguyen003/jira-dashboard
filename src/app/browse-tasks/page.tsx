@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
+import AssigneeCombobox from '@/components/form/AssigneeCombobox';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
 
@@ -127,11 +128,13 @@ interface FilterPanelProps {
   issueTypes: IssueType[];
   statuses: Status[];
   users: JiraUser[];
+  usersLoading: boolean;
+  usersError: boolean;
   expanded: boolean;
   onSubmit: (filters: BrowseFilters) => void;
 }
 
-function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, expanded, onSubmit }: FilterPanelProps) {
+function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, usersLoading, usersError, expanded, onSubmit }: FilterPanelProps) {
   const { t } = useLanguage();
   const [filters, setFilters] = useState<BrowseFilters>(initialFilters);
 
@@ -230,16 +233,13 @@ function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, ex
 
               <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.tab.assignee')}</label>
-                <select
+                <AssigneeCombobox
+                  users={users}
                   value={filters.assignee}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, assignee: e.target.value }))}
-                  className="glass-select w-full px-3 py-2 text-sm"
-                >
-                  <option value="">{t('browseTasks.all')}</option>
-                  {users.map((u) => (
-                    <option key={u.email || u.name} value={u.email || u.name}>{u.displayName}</option>
-                  ))}
-                </select>
+                  loading={usersLoading}
+                  error={usersError}
+                  onChange={(assignee) => setFilters((prev) => ({ ...prev, assignee }))}
+                />
               </div>
             </div>
 
@@ -338,6 +338,8 @@ export default function BrowseTasksPage() {
   const [issueTypes, setIssueTypes] = useState<IssueType[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [users, setUsers] = useState<JiraUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState(false);
   const [filters, setFilters] = useState<BrowseFilters>(EMPTY_FILTERS);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [fullIssues, setFullIssues] = useState<Record<string, JiraIssue>>({});
@@ -346,6 +348,8 @@ export default function BrowseTasksPage() {
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    const usersController = new AbortController();
+
     fetch('/api/jira/projects')
       .then((r) => r.json())
       .then((data) => setProjects(Array.isArray(data) ? data : []))
@@ -358,10 +362,21 @@ export default function BrowseTasksPage() {
       .then((r) => r.json())
       .then((data) => setStatuses(Array.isArray(data) ? data : []))
       .catch(() => {});
-    fetch('/api/jira/users')
-      .then((r) => r.json())
+    fetch('/api/jira/users?all=true', { signal: usersController.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Users API error: ${response.status}`);
+        return response.json();
+      })
       .then((data) => setUsers(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch((fetchError: unknown) => {
+        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+        setUsersError(true);
+      })
+      .finally(() => {
+        if (!usersController.signal.aborted) setUsersLoading(false);
+      });
+
+    return () => usersController.abort();
   }, []);
 
   const fetchTasks = useCallback(async (f: BrowseFilters) => {
@@ -545,6 +560,8 @@ export default function BrowseTasksPage() {
         issueTypes={issueTypes}
         statuses={statuses}
         users={users}
+        usersLoading={usersLoading}
+        usersError={usersError}
         expanded={showFilterPanel}
         onSubmit={handleSubmitFilters}
       />
