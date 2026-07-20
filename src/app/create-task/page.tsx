@@ -58,6 +58,10 @@ const issueTypeOptions = ['Task', 'Story', 'Sub-task', 'Bug', 'Epic'] as const;
 const priorityOptions = ['Highest', 'High', 'Medium', 'Low', 'Lowest'] as const;
 const jiraBaseUrl = (process.env.NEXT_PUBLIC_JIRA_BASE_URL || '').replace(/\/+$/, '');
 
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 export default function CreateTaskPage() {
   const { t } = useLanguage();
   const today = new Date();
@@ -149,102 +153,128 @@ export default function CreateTaskPage() {
     if (!form.assignee || form.assignee.length < 1) {
       return;
     }
+    const controller = new AbortController();
     const fetchUsers = async () => {
       setUserLoading(true);
       try {
-        const res = await fetch(`/api/jira/users?query=${encodeURIComponent(form.assignee)}`);
+        const res = await fetch(`/api/jira/users?query=${encodeURIComponent(form.assignee)}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
+        if (controller.signal.aborted) return;
         setUsers(data);
       } catch (err) {
+        if (isAbortError(err) || controller.signal.aborted) return;
         // Ignore user search errors silently
       } finally {
-        setUserLoading(false);
+        if (!controller.signal.aborted) setUserLoading(false);
       }
     };
     const timer = setTimeout(fetchUsers, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.assignee]);
 
   useEffect(() => {
     if (!form.project) {
       return;
     }
+    const controller = new AbortController();
     const fetchEpics = async () => {
       if (form.issuetype === 'Sub-task') {
         setParentTaskLoading(true);
         setParentTaskError(null);
         try {
-          const res = await fetch(`/api/jira/tasks?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`);
+          const res = await fetch(`/api/jira/tasks?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`, { signal: controller.signal });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const data = await res.json();
+          if (controller.signal.aborted) return;
           setParentTasks(data);
         } catch (err) {
+          if (isAbortError(err) || controller.signal.aborted) return;
           setParentTaskError(err instanceof Error ? err.message : 'Failed to fetch tasks');
         } finally {
-          setParentTaskLoading(false);
+          if (!controller.signal.aborted) setParentTaskLoading(false);
         }
       } else {
         setEpicLoading(true);
         setEpicError(null);
         try {
-          const res = await fetch(`/api/jira/epics?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`);
+          const res = await fetch(`/api/jira/epics?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`, { signal: controller.signal });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const data = await res.json();
+          if (controller.signal.aborted) return;
           setEpics(data);
         } catch (err) {
+          if (isAbortError(err) || controller.signal.aborted) return;
           setEpicError(err instanceof Error ? err.message : 'Failed to fetch epics');
         } finally {
-          setEpicLoading(false);
+          if (!controller.signal.aborted) setEpicLoading(false);
         }
       }
     };
     const timer = setTimeout(fetchEpics, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.project, form.issuetype, epicFilter]);
 
   useEffect(() => {
     if (!form.project) {
       return;
     }
+    const controller = new AbortController();
     const fetchComponents = async () => {
       setComponentLoading(true);
       setComponentError(null);
       try {
-        const res = await fetch(`/api/jira/components?project=${encodeURIComponent(form.project)}`);
+        const res = await fetch(`/api/jira/components?project=${encodeURIComponent(form.project)}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
+        if (controller.signal.aborted) return;
         setComponents(data);
       } catch (err) {
+        if (isAbortError(err) || controller.signal.aborted) return;
         setComponentError(err instanceof Error ? err.message : 'Failed to fetch components');
       } finally {
-        setComponentLoading(false);
+        if (!controller.signal.aborted) setComponentLoading(false);
       }
     };
     const timer = setTimeout(fetchComponents, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.project]);
 
   useEffect(() => {
     if (!form.project) {
       return;
     }
+    const controller = new AbortController();
     const fetchSprints = async () => {
       setSprintLoading(true);
       setSprintError(null);
       try {
-        const res = await fetch(`/api/jira/sprints?project=${encodeURIComponent(form.project)}`);
+        const res = await fetch(`/api/jira/sprints?project=${encodeURIComponent(form.project)}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
+        if (controller.signal.aborted) return;
         setSprints(data);
       } catch (err) {
+        if (isAbortError(err) || controller.signal.aborted) return;
         setSprintError(err instanceof Error ? err.message : 'Failed to fetch sprints');
       } finally {
-        setSprintLoading(false);
+        if (!controller.signal.aborted) setSprintLoading(false);
       }
     };
     const timer = setTimeout(fetchSprints, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.project]);
 
   useEffect(() => {

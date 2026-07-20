@@ -50,6 +50,10 @@ function getIsLightTheme() {
   return document.documentElement.getAttribute('data-theme') === 'light';
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModalProps) {
   const { t } = useLanguage();
   const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
@@ -64,10 +68,11 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true);
       setError(null);
-      fetch(`/api/jira/users?query=${encodeURIComponent(query.trim())}`)
+      fetch(`/api/jira/users?query=${encodeURIComponent(query.trim())}`, { signal: controller.signal })
         .then(async (res) => {
           if (!res.ok) {
             throw new Error(`API error: ${res.status}`);
@@ -75,16 +80,23 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
           return res.json();
         })
         .then((data: JiraUserOption[]) => {
+          if (controller.signal.aborted) return;
           setUsers(data);
         })
-        .catch(() => {
+        .catch((requestError: unknown) => {
+          if (isAbortError(requestError) || controller.signal.aborted) return;
           setUsers([]);
           setError('Không tải được danh sách người dùng');
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query]);
 
   const colors = isLight ? LIGHT : DARK;

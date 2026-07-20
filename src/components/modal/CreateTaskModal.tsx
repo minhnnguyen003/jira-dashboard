@@ -83,6 +83,10 @@ function getIsLightTheme() {
   return document.documentElement.getAttribute('data-theme') === 'light';
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
   const { t } = useLanguage();
   const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
@@ -143,42 +147,86 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
   useEffect(() => {
     if (!form.assignee) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setUserLoading(true);
-      fetch(`/api/jira/users?query=${encodeURIComponent(form.assignee)}`)
-        .then((r) => r.json()).then(setUsers).catch(() => {})
-        .finally(() => setUserLoading(false));
+      fetch(`/api/jira/users?query=${encodeURIComponent(form.assignee)}`, { signal: controller.signal })
+        .then((r) => r.json()).then((data: User[]) => {
+          if (controller.signal.aborted) return;
+          setUsers(data);
+        })
+        .catch((requestError: unknown) => {
+          if (isAbortError(requestError) || controller.signal.aborted) return;
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setUserLoading(false);
+        });
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.assignee]);
 
   useEffect(() => {
     if (!form.project) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       if (form.issuetype === 'Sub-task') {
         setParentTaskLoading(true);
-        fetch(`/api/jira/tasks?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`)
-          .then((r) => r.json()).then(setParentTasks).catch(() => {})
-          .finally(() => setParentTaskLoading(false));
+        fetch(`/api/jira/tasks?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`, { signal: controller.signal })
+          .then((r) => r.json()).then((data: TaskOption[]) => {
+            if (controller.signal.aborted) return;
+            setParentTasks(data);
+          })
+          .catch((requestError: unknown) => {
+            if (isAbortError(requestError) || controller.signal.aborted) return;
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setParentTaskLoading(false);
+          });
       } else {
         setEpicLoading(true);
-        fetch(`/api/jira/epics?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`)
-          .then((r) => r.json()).then(setEpics).catch(() => {})
-          .finally(() => setEpicLoading(false));
+        fetch(`/api/jira/epics?project=${encodeURIComponent(form.project)}&query=${encodeURIComponent(epicFilter)}`, { signal: controller.signal })
+          .then((r) => r.json()).then((data: Epic[]) => {
+            if (controller.signal.aborted) return;
+            setEpics(data);
+          })
+          .catch((requestError: unknown) => {
+            if (isAbortError(requestError) || controller.signal.aborted) return;
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setEpicLoading(false);
+          });
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.project, form.issuetype, epicFilter]);
 
   useEffect(() => {
     if (!form.project) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setSprintLoading(true);
-      fetch(`/api/jira/sprints?project=${encodeURIComponent(form.project)}`)
-        .then((r) => r.json()).then(setSprints).catch(() => {})
-        .finally(() => setSprintLoading(false));
+      fetch(`/api/jira/sprints?project=${encodeURIComponent(form.project)}`, { signal: controller.signal })
+        .then((r) => r.json()).then((data: Sprint[]) => {
+          if (controller.signal.aborted) return;
+          setSprints(data);
+        })
+        .catch((requestError: unknown) => {
+          if (isAbortError(requestError) || controller.signal.aborted) return;
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSprintLoading(false);
+        });
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [form.project]);
 
   useEffect(() => {
