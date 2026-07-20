@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
-import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { formatJiraErrorDetail, getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -57,22 +57,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response.data);
   } catch (error: unknown) {
     const { status, detail } = getJiraErrorDetails(error);
-    const jiraDetail = detail as {
-      errors?: Record<string, unknown>;
-      errorMessages?: unknown[];
-      message?: string;
-    };
-    let errorMessage = '';
-    if (jiraDetail?.errors && typeof jiraDetail.errors === 'object') {
-      errorMessage = Object.entries(jiraDetail.errors)
-        .map(([field, msg]) => `${field}: ${msg}`)
-        .join(' | ');
-    }
-    if (!errorMessage) {
-      errorMessage = jiraDetail?.errorMessages?.join(', ') || jiraDetail?.message || JSON.stringify(detail);
-    }
+    const errorMessage = formatJiraErrorDetail(detail);
     console.error('Jira editmeta error:', errorMessage);
-    console.error('Full Jira response:', JSON.stringify(detail));
+    console.error('Full Jira response:', detail);
     return NextResponse.json(
       { error: `Jira API error (${status}): ${errorMessage || 'Unknown error'}` },
       { status: typeof status === 'number' && status >= 400 ? status : 500 }

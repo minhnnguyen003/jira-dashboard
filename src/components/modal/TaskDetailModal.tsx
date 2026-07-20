@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/i18n';
 import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
 import {
   canCloseTaskDetail,
+  commitTaskDetailMutationAndRefresh,
   createLatestRequestScope,
   createTaskDetailState,
   getDescriptionPlaceholder,
@@ -12,7 +13,6 @@ import {
   getTaskDetailTransitionView,
   resetTaskDetailStateForIssue,
   resolveTaskDetailStateAfterSave,
-  runIssueRefresh,
 } from './taskDetailModal.helpers.js';
 import { useEffect, useState, useRef, useCallback, useSyncExternalStore, type ChangeEvent } from 'react';
 
@@ -366,6 +366,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const [editState, setEditState] = useState<TaskDetailEditState>(() => createTaskDetailState(issue));
   const { initialValues, initialDatetimeValues, editedValues, datetimeValues } = editState;
   const [editMeta, setEditMeta] = useState<JiraEditMeta | null>(null);
@@ -506,6 +507,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     if (!selectedTransition) return;
     const request = transitionActionScope.begin();
     setTransitionMutationPending(true);
+    setRefreshWarning(null);
     setTransitionState((previous) => previous.loadedFor === issue ? {
       ...previous,
       actionError: null,
@@ -531,15 +533,21 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       }
 
       if (!request.isCurrent()) return;
-      await runIssueRefresh(issue, onRefresh);
+      const refreshResult = await commitTaskDetailMutationAndRefresh({
+        issue,
+        onRefresh,
+        commit() {
+          setTransitionState((previous) => previous.loadedFor === issue ? {
+            ...previous,
+            selectedTransition: null,
+            transitionFieldsData: {},
+            fieldValues: {},
+            actionError: null,
+          } : previous);
+        },
+      });
       if (!request.isCurrent()) return;
-      setTransitionState((previous) => previous.loadedFor === issue ? {
-        ...previous,
-        selectedTransition: null,
-        transitionFieldsData: {},
-        fieldValues: {},
-        actionError: null,
-      } : previous);
+      setRefreshWarning(refreshResult.refreshWarning);
     } catch (err) {
       if (!request.isCurrent()) return;
       setTransitionState((previous) => previous.loadedFor === issue ? {
@@ -632,10 +640,11 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       const updateFields = buildUpdateFields();
 
       setSaveError(null);
-      setEditMode(false);
+      setRefreshWarning(null);
       setSaving(true);
 
       if (Object.keys(updateFields).length === 0) {
+        setEditMode(false);
         setEditState((previous) => resetTaskDetailStateForIssue(previous, issue));
         return;
       }
@@ -652,9 +661,19 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
       }
 
       if (!request.isCurrent()) return;
-      const refreshedIssue = await runIssueRefresh(issue, onRefresh);
+      const refreshResult = await commitTaskDetailMutationAndRefresh({
+        issue,
+        onRefresh,
+        commit() {
+          setEditMode(false);
+          setEditState(resolveTaskDetailStateAfterSave(previousEditState, null, updateFields));
+        },
+      });
       if (!request.isCurrent()) return;
-      setEditState(resolveTaskDetailStateAfterSave(previousEditState, refreshedIssue, updateFields));
+      if (refreshResult.refreshedIssue) {
+        setEditState(resolveTaskDetailStateAfterSave(previousEditState, refreshResult.refreshedIssue, updateFields));
+      }
+      setRefreshWarning(refreshResult.refreshWarning);
     } catch (err) {
       if (!request.isCurrent()) return;
       setSaveError(err instanceof Error ? err.message : 'Unknown error');
@@ -883,6 +902,11 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             {saveError && (
               <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'rgba(242,144,150,0.15)', color: '#f29096', border: '1px solid rgba(242,144,150,0.3)' }}>
                 {saveError}
+              </div>
+            )}
+            {refreshWarning && (
+              <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+                {refreshWarning}
               </div>
             )}
             <div className="text-xs mb-5" style={{ color: c.textMuted }}>{t('dialog.id')}: {currentIssue.id}</div>

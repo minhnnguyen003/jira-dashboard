@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   canCloseTaskDetail,
+  commitTaskDetailMutationAndRefresh,
   createLatestRequestScope,
   createTaskDetailState,
   getDescriptionPlaceholder,
@@ -240,4 +241,50 @@ test('runIssueRefresh preserves null or void from the refresh callback', async (
 
   assert.equal(await runIssueRefresh(issue, async () => null), null);
   assert.equal(await runIssueRefresh(issue, async () => undefined), null);
+});
+
+test('successful save commits and clears its retry payload before a failed refresh warns', async () => {
+  const issue = { key: 'ABC-123' };
+  const saveUi = { editOpen: true, retryPayload: { summary: 'Saved once' } };
+
+  const result = await commitTaskDetailMutationAndRefresh({
+    issue,
+    commit() {
+      saveUi.editOpen = false;
+      saveUi.retryPayload = null;
+    },
+    async onRefresh() {
+      assert.deepEqual(saveUi, { editOpen: false, retryPayload: null });
+      throw new Error('refresh unavailable');
+    },
+  });
+
+  assert.deepEqual(saveUi, { editOpen: false, retryPayload: null });
+  assert.deepEqual(result, {
+    refreshedIssue: null,
+    refreshWarning: 'Đã cập nhật nhưng chưa tải lại được.',
+  });
+});
+
+test('successful transition closes confirmation before a failed refresh warns', async () => {
+  const issue = { key: 'ABC-123' };
+  const transitionUi = { confirmationOpen: true, retryPayload: { transitionId: '31' } };
+
+  const result = await commitTaskDetailMutationAndRefresh({
+    issue,
+    commit() {
+      transitionUi.confirmationOpen = false;
+      transitionUi.retryPayload = null;
+    },
+    async onRefresh() {
+      assert.deepEqual(transitionUi, { confirmationOpen: false, retryPayload: null });
+      throw new Error('refresh unavailable');
+    },
+  });
+
+  assert.deepEqual(transitionUi, { confirmationOpen: false, retryPayload: null });
+  assert.deepEqual(result, {
+    refreshedIssue: null,
+    refreshWarning: 'Đã cập nhật nhưng chưa tải lại được.',
+  });
 });

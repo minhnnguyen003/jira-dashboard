@@ -205,3 +205,19 @@ export async function runIssueRefresh(issue, onRefresh) {
   const refreshedIssue = await onRefresh(issue);
   return refreshedIssue ?? null;
 }
+
+export async function commitTaskDetailMutationAndRefresh({ issue, onRefresh, commit }) {
+  commit();
+
+  try {
+    return {
+      refreshedIssue: await runIssueRefresh(issue, onRefresh),
+      refreshWarning: null,
+    };
+  } catch {
+    return {
+      refreshedIssue: null,
+      refreshWarning: 'Đã cập nhật nhưng chưa tải lại được.',
+    };
+  }
+}
