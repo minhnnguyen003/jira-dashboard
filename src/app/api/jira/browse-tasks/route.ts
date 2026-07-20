@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
-import { JiraIssue, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
+import { JiraIssue, JiraIssueType, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
 import { buildDateClauses } from '../work-tasks/dateField.js';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
@@ -26,13 +26,27 @@ interface JiraWorklog {
 
 type JiraUnknownFields = Record<string, unknown>;
 
+interface JiraIssueTypePayload extends JiraIssueType {
+  [key: string]: unknown;
+}
+
+type JiraFullIssue = Omit<JiraIssue, 'fields'> & {
+  fields: Omit<JiraIssue['fields'], 'created' | 'updated' | 'timeestimate' | 'timespent' | 'timeoriginalestimate'> & {
+    created: string | null;
+    updated: string | null;
+    timeestimate: string | number | null;
+    timespent: string | number | null;
+    timeoriginalestimate: string | number | null;
+  };
+};
+
 interface JiraIssueFields extends JiraUnknownFields {
   summary?: string;
   status?: JiraStatus;
   assignee?: JiraUser | null;
   reporter?: JiraUser | null;
   priority?: JiraPriority | null;
-  issuetype?: { name?: string; iconUrl?: string };
+  issuetype?: JiraIssueTypePayload;
   timeestimate?: string | number | null;
   timespent?: string | number | null;
   timeoriginalestimate?: string | number | null;
@@ -59,7 +73,7 @@ function isRecord(value: unknown): value is JiraUnknownFields {
   return typeof value === 'object' && value !== null;
 }
 
-function getEpic(link: unknown, epic: unknown): JiraIssue['fields']['epic'] {
+function getEpic(link: unknown, epic: unknown): JiraFullIssue['fields']['epic'] {
   if (link) {
     return { key: '', fields: { name: '', color: '' } };
   }
@@ -77,7 +91,7 @@ function getEpic(link: unknown, epic: unknown): JiraIssue['fields']['epic'] {
   };
 }
 
-function getParent(parent: unknown): JiraIssue['fields']['parent'] {
+function getParent(parent: unknown): JiraFullIssue['fields']['parent'] {
   const parentRecord = isRecord(parent) ? parent : null;
   const parentFields = isRecord(parentRecord?.fields) ? parentRecord.fields : null;
   if (!parentRecord) return null;
@@ -207,12 +221,12 @@ export async function GET(request: NextRequest) {
 
     const rawIssues = searchRes.data.issues || [];
 
-    const buildFullIssuesMap = (issues: JiraIssuePayload[]): Record<string, JiraIssue> => {
-      const map: Record<string, JiraIssue> = {};
+    const buildFullIssuesMap = (issues: JiraIssuePayload[]): Record<string, JiraFullIssue> => {
+      const map: Record<string, JiraFullIssue> = {};
       issues.forEach((issue) => {
         try {
           const fields = issue.fields;
-          const issueObj: JiraIssue = {
+          const issueObj: JiraFullIssue = {
             id: issue.id || '',
             key: issue.key || '',
             fields: {
@@ -221,7 +235,7 @@ export async function GET(request: NextRequest) {
               assignee: fields?.assignee || null,
               reporter: fields?.reporter || null,
               priority: fields?.priority || null,
-              issuetype: fields?.issuetype?.name ? { name: fields.issuetype.name, iconUrl: fields.issuetype.iconUrl || '' } : { name: 'Issue', iconUrl: '' },
+              issuetype: fields?.issuetype || { name: 'Issue', iconUrl: '' },
               timeestimate: toStringOrNull(fields?.timeestimate),
               timespent: toStringOrNull(fields?.timespent),
               timeoriginalestimate: toStringOrNull(fields?.timeoriginalestimate),
@@ -230,8 +244,8 @@ export async function GET(request: NextRequest) {
               duedate: fields?.duedate || (typeof fields?.customfield_10302 === 'string' ? fields.customfield_10302 : null),
               customfield_10302: typeof fields?.customfield_10302 === 'string' ? fields.customfield_10302 : null,
               resolutiondate: fields?.resolutiondate || null,
-              created: fields?.created || '',
-              updated: fields?.updated || '',
+              created: fields?.created || null,
+              updated: fields?.updated || null,
               labels: fields?.labels || [],
               sprint: fields?.sprint || null,
               resolution: fields?.resolution || null,
@@ -287,7 +301,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const response: { issues: typeof issues; total: number; startAt: number; maxResults: number; fullIssues?: Record<string, JiraIssue> } = {
+    const response: { issues: typeof issues; total: number; startAt: number; maxResults: number; fullIssues?: Record<string, JiraFullIssue> } = {
       issues,
       total,
       startAt,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
-import { JiraIssue, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
+import { JiraIssue, JiraIssueType, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
 import { buildWorklogAuthorJql, readProfileEmailFromRequestCookieHeader } from './profileAuthor.js';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
@@ -26,13 +26,27 @@ interface JiraWorklog {
 
 type JiraUnknownFields = Record<string, unknown>;
 
+interface JiraIssueTypePayload extends JiraIssueType {
+  [key: string]: unknown;
+}
+
+type JiraFullIssue = Omit<JiraIssue, 'fields'> & {
+  fields: Omit<JiraIssue['fields'], 'created' | 'updated' | 'timeestimate' | 'timespent' | 'timeoriginalestimate'> & {
+    created: string | null;
+    updated: string | null;
+    timeestimate: string | number | null;
+    timespent: string | number | null;
+    timeoriginalestimate: string | number | null;
+  };
+};
+
 interface JiraIssueFields extends JiraUnknownFields {
   summary?: string;
   status?: JiraStatus;
   assignee?: JiraUser | null;
   reporter?: JiraUser | null;
   priority?: JiraPriority | null;
-  issuetype?: { name?: string; iconUrl?: string };
+  issuetype?: JiraIssueTypePayload;
   timeestimate?: string | number | null;
   timespent?: string | number | null;
   timeoriginalestimate?: string | number | null;
@@ -59,7 +73,7 @@ function isRecord(value: unknown): value is JiraUnknownFields {
   return typeof value === 'object' && value !== null;
 }
 
-function getEpic(link: unknown, epic: unknown): JiraIssue['fields']['epic'] {
+function getEpic(link: unknown, epic: unknown): JiraFullIssue['fields']['epic'] {
   if (link) return { key: '', fields: { name: '', color: '' } };
 
   const epicRecord = isRecord(epic) ? epic : null;
@@ -75,7 +89,7 @@ function getEpic(link: unknown, epic: unknown): JiraIssue['fields']['epic'] {
   };
 }
 
-function getParent(parent: unknown): JiraIssue['fields']['parent'] {
+function getParent(parent: unknown): JiraFullIssue['fields']['parent'] {
   const parentRecord = isRecord(parent) ? parent : null;
   const parentFields = isRecord(parentRecord?.fields) ? parentRecord.fields : null;
   if (!parentRecord) return null;
@@ -84,10 +98,6 @@ function getParent(parent: unknown): JiraIssue['fields']['parent'] {
     key: typeof parentRecord.key === 'string' ? parentRecord.key : '',
     fields: { summary: typeof parentFields?.summary === 'string' ? parentFields.summary : '' },
   };
-}
-
-function toStringOrNull(value: string | number | null | undefined): string | null {
-  return typeof value === 'string' ? value : typeof value === 'number' && value ? String(value) : null;
 }
 
 const httpsAgent = new https.Agent({
@@ -185,9 +195,16 @@ export async function GET(request: NextRequest) {
           headers: getAuthHeaders(),
         });
 
-        const responseData = response.data;
-        totalIssues = responseData.total || 0;
-        allWorklogIssues.push(...(responseData.issues || []));
+      const responseData = response.data;
+      const issuePage = responseData.issues;
+      if (!Array.isArray(issuePage)) {
+        throw new Error('Jira search response is missing an issues array');
+      }
+      totalIssues = responseData.total || 0;
+        if (issuePage.length === 0 && allWorklogIssues.length < totalIssues) {
+          throw new Error('Jira search response returned an empty page before total');
+        }
+        allWorklogIssues.push(...issuePage);
         startAt += maxResults;
         hasFetched = true;
         if (allWorklogIssues.length >= 2000) break;
@@ -270,7 +287,7 @@ export async function GET(request: NextRequest) {
         dueDate: formatVNDate(issue.fields?.duedate || (typeof issue.fields?.customfield_10302 === 'string' ? issue.fields.customfield_10302 : null)),
       }));
 
-      const fullIssues: Record<string, JiraIssue> = {};
+      const fullIssues: Record<string, JiraFullIssue> = {};
       for (const issue of issuesWithWorklogsOnDate) {
         const fields = issue.fields;
         fullIssues[issue.key || ''] = {
@@ -282,10 +299,10 @@ export async function GET(request: NextRequest) {
             assignee: fields?.assignee || null,
             reporter: fields?.reporter || null,
             priority: fields?.priority || null,
-            issuetype: fields?.issuetype?.name ? { name: fields.issuetype.name, iconUrl: fields.issuetype.iconUrl || '' } : { name: 'Issue', iconUrl: '' },
-            timeestimate: toStringOrNull(fields?.timeestimate),
-            timespent: toStringOrNull(fields?.timespent),
-            timeoriginalestimate: toStringOrNull(fields?.timeoriginalestimate),
+            issuetype: fields?.issuetype || { name: 'Issue', iconUrl: '' },
+            timeestimate: fields?.timeestimate ?? null,
+            timespent: fields?.timespent ?? null,
+            timeoriginalestimate: fields?.timeoriginalestimate ?? null,
             startdate: formatVNDate(fields?.startdate || (typeof fields?.customfield_10300 === 'string' ? fields.customfield_10300 : null)),
             duedate: formatVNDate(fields?.duedate || (typeof fields?.customfield_10302 === 'string' ? fields.customfield_10302 : null)),
             resolutiondate: formatVNDate(fields?.resolutiondate),
@@ -334,9 +351,16 @@ export async function GET(request: NextRequest) {
         headers: getAuthHeaders(),
       });
 
-      const responseData = response.data;
-      totalIssues = responseData.total || 0;
-      allIssues.push(...(responseData.issues || []));
+        const responseData = response.data;
+        const issuePage = responseData.issues;
+        if (!Array.isArray(issuePage)) {
+          throw new Error('Jira search response is missing an issues array');
+        }
+        totalIssues = responseData.total || 0;
+      if (issuePage.length === 0 && allIssues.length < totalIssues) {
+        throw new Error('Jira search response returned an empty page before total');
+      }
+      allIssues.push(...issuePage);
       startAt += maxApiResults;
       hasFetched = true;
     }
