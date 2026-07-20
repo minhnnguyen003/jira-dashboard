@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { fetchAllJiraUsers, normalizeJiraUsers } from './userPagination.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || '';
+    const all = searchParams.get('all') === 'true';
     const baseUrl = (process.env.JIRA_BASE_URL || '').replace(/\/+$/, '');
 
     if (!baseUrl) {
@@ -46,35 +48,29 @@ export async function GET(request: NextRequest) {
       timeout: 30000,
     });
 
-    const params: Record<string, string> = {
-      username: query,
-      maxResults: '20',
-    };
+    if (all) {
+      const users = await fetchAllJiraUsers(async ({ startAt, maxResults }: { startAt: number; maxResults: number }) => {
+        const response = await axiosInstance.get('/rest/api/2/user/search', {
+          params: {
+            username: '',
+            search: '',
+            startAt: String(startAt),
+            maxResults: String(maxResults),
+          },
+          headers: getAuthHeaders(),
+        });
+        return response.data;
+      });
 
-    if (query) {
-      params.search = query;
+      return NextResponse.json(users);
     }
 
     const response = await axiosInstance.get('/rest/api/2/user/search', {
-      params,
+      params: { username: query, ...(query ? { search: query } : {}), maxResults: '20' },
       headers: getAuthHeaders(),
     });
 
-    const users = (
-      response.data as Array<{
-        name?: string;
-        displayName?: string;
-        emailAddress?: string;
-        avatarUrls?: Record<string, string>;
-      }>
-    ).map((u) => ({
-      name: u.name || '',
-      displayName: u.displayName || u.name || '',
-      email: u.emailAddress || u.name || '',
-      avatarUrl: u.avatarUrls?.['48x48'] || '',
-    }));
-
-    return NextResponse.json(users);
+    return NextResponse.json(normalizeJiraUsers(response.data));
   } catch (error: unknown) {
     console.error('Jira users API error:', error);
     const { status, detail } = getJiraErrorDetails(error);
