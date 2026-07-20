@@ -3,14 +3,21 @@
 import { JiraIssue, JiraTransition, JiraTransitionField, JiraEditMeta } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
 import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
-import { getDescriptionPlaceholder, runIssueRefresh } from './taskDetailModal.helpers.js';
-import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react';
+import { createTaskDetailState, getDescriptionPlaceholder, runIssueRefresh } from './taskDetailModal.helpers.js';
+import { useEffect, useState, useRef, useCallback, useSyncExternalStore, type ChangeEvent } from 'react';
 
 interface TaskDetailModalProps {
   issue: JiraIssue | null;
   onClose: () => void;
   onLogWork?: () => void;
   onRefresh?: (issue: JiraIssue) => Promise<JiraIssue | null | void>;
+}
+
+interface TaskDetailEditState {
+  initialValues: Record<string, string>;
+  initialDatetimeValues: Record<string, string>;
+  editedValues: Record<string, string | null>;
+  datetimeValues: Record<string, string>;
 }
 
 function formatTime(seconds: number | null): string {
@@ -53,22 +60,6 @@ function formatDateTime(dateStr: string | null | undefined): string {
   }
 }
 
-function formatDateTimeForInput(dateStr: string | null | undefined): string {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  } catch {
-    return '';
-  }
-}
-
 function formatJiraDatetime(dateInput: string): string | null {
   if (!dateInput) return null;
   return `${dateInput}:00.000+0700`;
@@ -78,8 +69,6 @@ function getAvatarUrl(user: { avatarUrls?: Record<string, string>; displayName: 
   if (!user?.avatarUrls) return '';
   return user.avatarUrls[48] || '';
 }
-
-const STATUS_OPTIONS = ['To Do', 'In Progress', 'Pending', 'In Review', 'Waiting', 'Resolved', 'Closed', 'Done', 'Open'];
 
 const PRIORITY_OPTIONS = ['Highest', 'High', 'Medium', 'Low', 'Lowest', 'None'];
 
@@ -193,7 +182,7 @@ function LightChip({ children, style }: { children: React.ReactNode; style?: Rea
   );
 }
 
-function ValueLabel({ label, children, c, chipStyle }: { label: string; children: React.ReactNode; c: typeof DARK; chipStyle?: React.CSSProperties }) {
+function ValueLabel({ label, children, c }: { label: string; children: React.ReactNode; c: typeof DARK }) {
   return (
     <div>
       <div className="text-[11px] font-medium uppercase tracking-wider mb-1.5" style={{ color: c.textMuted }}>{label}</div>
@@ -267,11 +256,7 @@ function EditTextArea({ value, onChange, style, textPrimary, borderColor, placeh
 function DateTimePickerField({ value, onChange, textPrimary, borderColor, theme }: { value: string; onChange: (v: string) => void; textPrimary: string; borderColor: string; theme?: 'dark' | 'light' }) {
   const bg = theme === 'light' ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.1)';
   const hiddenInputRef = useRef<HTMLInputElement>(null);
-  const [displayValue, setDisplayValue] = useState(formatDateTimeFromInput(value));
-
-  useEffect(() => {
-    setDisplayValue(formatDateTimeFromInput(value));
-  }, [value]);
+  const displayValue = formatDateTimeFromInput(value);
 
   const handleDisplayClick = useCallback(() => {
     if (hiddenInputRef.current) {
@@ -331,29 +316,47 @@ function formatDateTimeFromInput(inputValue: string): string {
   }
 }
 
-export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }: TaskDetailModalProps) {
+function subscribeToTheme(callback: () => void): () => void {
+  const observer = new MutationObserver(callback);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+function getIsLightTheme(): boolean {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+function getServerIsLightTheme(): boolean {
+  return false;
+}
+
+export default function TaskDetailModal(props: TaskDetailModalProps) {
+  if (!props.issue) return null;
+  return <TaskDetailModalContent key={props.issue.key} {...props} issue={props.issue} />;
+}
+
+function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDetailModalProps & { issue: JiraIssue }) {
   const { t, language } = useLanguage();
-  const [isLight, setIsLight] = useState(false);
+  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, getServerIsLightTheme);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [editedValues, setEditedValues] = useState<Record<string, string | null>>({});
+  const [editState, setEditState] = useState<TaskDetailEditState>(() => createTaskDetailState(issue));
+  const { initialValues, initialDatetimeValues, editedValues, datetimeValues } = editState;
   const [editMeta, setEditMeta] = useState<JiraEditMeta | null>(null);
-  const [editMetaLoading, setEditMetaLoading] = useState(false);
-  const [datetimeValues, setDatetimeValues] = useState<Record<string, string>>({});
+  const [editMetaLoading, setEditMetaLoading] = useState(true);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Transition state
   const [showTransitionMenu, setShowTransitionMenu] = useState(false);
   const [transitions, setTransitions] = useState<JiraTransition[]>([]);
-  const [transitionLoading, setTransitionLoading] = useState(false);
+  const [transitionLoading, setTransitionLoading] = useState(true);
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [selectedTransition, setSelectedTransition] = useState<JiraTransition | null>(null);
   const [transitionFieldsData, setTransitionFieldsData] = useState<Record<string, JiraTransitionField>>({});
   const [fieldValues, setFieldValues] = useState<Record<string, string | null>>({});
   const transitionMenuRef = useRef<HTMLDivElement>(null);
-  const transitionRequestIdRef = useRef(0);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -365,54 +368,39 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fetchTransitions = useCallback(async (issueKey: string) => {
-    const requestId = ++transitionRequestIdRef.current;
-    setShowTransitionMenu(false);
-    setTransitions([]);
-    setTransitionLoading(true);
-    setTransitionError(null);
-    setSelectedTransition(null);
-    setTransitionFieldsData({});
-    setFieldValues({});
-    try {
-      const res = await fetch(`/api/jira/transitions?key=${encodeURIComponent(issueKey)}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Failed to fetch transitions (${res.status})`);
-      }
-
-      const data = await res.json();
-      if (transitionRequestIdRef.current !== requestId) {
-        return;
-      }
-
-      if (data.transitions) {
-        setTransitions(data.transitions);
-      } else {
-        setTransitions([]);
-      }
-    } catch (err) {
-      if (transitionRequestIdRef.current === requestId) {
-        setTransitionError(err instanceof Error ? err.message : 'Failed to fetch transitions');
-        setTransitions([]);
-      }
-    } finally {
-      if (transitionRequestIdRef.current === requestId) {
-        setTransitionLoading(false);
-      }
-    }
-  }, []);
-
   useEffect(() => {
-    if (!issue) return;
-    fetchTransitions(issue.key);
-  }, [issue, fetchTransitions]);
+    let cancelled = false;
 
-  useEffect(() => {
+    fetch(`/api/jira/transitions?key=${encodeURIComponent(issue.key)}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || `Failed to fetch transitions (${response.status})`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setTransitionError(null);
+          setTransitions(data.transitions || []);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setTransitionError(error instanceof Error ? error.message : 'Failed to fetch transitions');
+          setTransitions([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTransitionLoading(false);
+        }
+      });
+
     return () => {
-      transitionRequestIdRef.current += 1;
+      cancelled = true;
     };
-  }, []);
+  }, [issue]);
 
   const handleStatusArrowClick = useCallback(async () => {
     if (!issue) return;
@@ -484,61 +472,36 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
   }, []);
 
-  useEffect(() => {
-    setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    const observer = new MutationObserver(() => {
-      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-
   const c = isLight ? LIGHT : DARK;
   const ChipComp = isLight ? LightChip : Chip;
-
-  const editModeRef = useRef(editMode);
-  editModeRef.current = editMode;
 
   const getInitialValue = (field: string, original: unknown): string => {
     const edited = editedValues[field];
     if (edited !== undefined && edited !== null) return String(edited);
-    return String(original ?? '');
+    const initial = initialValues[field];
+    return initial !== undefined && initial !== null ? String(initial) : String(original ?? '');
   };
 
   const handleEdit = (field: string, value: string) => {
-    setEditedValues((prev) => {
-      const origValue = getOriginalValueForCompare(field);
-      if (value === origValue) {
-        const next = { ...prev };
+    setEditState((prev) => {
+      if (value === String(prev.initialValues[field] ?? '')) {
+        const next = { ...prev.editedValues };
         delete next[field];
-        return next;
+        return { ...prev, editedValues: next };
       }
-      return { ...prev, [field]: value };
+      return { ...prev, editedValues: { ...prev.editedValues, [field]: value } };
     });
   };
 
-  const getOriginalValueForCompare = (field: string): string => {
-    switch (field) {
-      case 'summary': return f.summary || '';
-      case 'priority': return f.priority?.name || '';
-      case 'assignee': return f.assignee?.displayName || '';
-      case 'reporter': return f.reporter?.displayName || '';
-      case 'sprint': return f.sprint?.name || '';
-      case 'timeoriginalestimate': return f.timeoriginalestimate ? formatTime(parseInt(f.timeoriginalestimate)) : '0h';
-      case 'timeestimate': return f.timeestimate ? formatTime(parseInt(f.timeestimate)) : '0h';
-      case 'timespent': return f.timespent ? formatTime(parseInt(f.timespent)) : '0h';
-      case 'startDate': return formatDateTime(f.customfield_10300 || f.startdate);
-      case 'dueDate': return formatDateTime(f.customfield_10302 || f.duedate);
-      case 'resolutionDate': return formatDateTime(f.resolutiondate);
-      case 'description': return f.description || '';
-      case 'epic': return f.epic?.key || '';
-      case 'parent': return f.parent?.key || '';
-      case 'labels': return f.labels?.join(', ') || '';
-      case 'resolution': return f.resolution?.name || '';
-      case 'issuetype': return f.issuetype.name || '';
-      default: return '';
-    }
-  };
+  const isFieldEditable = useCallback((field: string): boolean => {
+    if (!editMode) return false;
+    if (editMetaLoading || !editMeta) return true;
+    const apiField = FIELD_API_MAPPING[field];
+    if (!apiField) return false;
+    const fieldMeta = editMeta.fields?.[apiField];
+    if (!fieldMeta) return false;
+    return fieldMeta.operations.includes('set') || fieldMeta.operations.includes('edit');
+  }, [editMeta, editMetaLoading, editMode]);
 
   const buildUpdateFields = useCallback((): Record<string, unknown> => {
     const updateFields: Record<string, unknown> = {};
@@ -546,9 +509,9 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     if (isFieldEditable('summary') && editedValues.summary !== undefined) updateFields.summary = editedValues.summary;
     if (isFieldEditable('priority') && editedValues.priority !== undefined) updateFields.priority = editedValues.priority ? { name: editedValues.priority } : null;
     if (isFieldEditable('assignee') && editedValues.assignee !== undefined) updateFields.assignee = editedValues.assignee ? { name: editedValues.assignee } : null;
-    if (isFieldEditable('startDate') && datetimeValues.startDate !== undefined && datetimeValues.startDate) updateFields.customfield_10300 = formatJiraDatetime(datetimeValues.startDate);
-    if (isFieldEditable('dueDate') && datetimeValues.dueDate !== undefined && datetimeValues.dueDate) updateFields.customfield_10302 = formatJiraDatetime(datetimeValues.dueDate);
-    if (isFieldEditable('resolutionDate') && datetimeValues.resolutionDate !== undefined && datetimeValues.resolutionDate) updateFields.resolutiondate = formatJiraDatetime(datetimeValues.resolutionDate);
+    if (isFieldEditable('startDate') && datetimeValues.startDate !== initialDatetimeValues.startDate && datetimeValues.startDate) updateFields.customfield_10300 = formatJiraDatetime(datetimeValues.startDate);
+    if (isFieldEditable('dueDate') && datetimeValues.dueDate !== initialDatetimeValues.dueDate && datetimeValues.dueDate) updateFields.customfield_10302 = formatJiraDatetime(datetimeValues.dueDate);
+    if (isFieldEditable('resolutionDate') && datetimeValues.resolutionDate !== initialDatetimeValues.resolutionDate && datetimeValues.resolutionDate) updateFields.resolutiondate = formatJiraDatetime(datetimeValues.resolutionDate);
     if (isFieldEditable('description') && editedValues.description !== undefined) updateFields.description = editedValues.description;
     if (isFieldEditable('timeoriginalestimate') && editedValues.timeoriginalestimate !== undefined && editedValues.timeoriginalestimate) {
       updateFields.timeoriginalestimate = parseJiraTime(editedValues.timeoriginalestimate);
@@ -558,13 +521,12 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
     }
 
     return updateFields;
-  }, [datetimeValues, editedValues, editMeta, editMetaLoading, editMode]);
+  }, [datetimeValues, editedValues, initialDatetimeValues, isFieldEditable]);
 
   const handleSave = useCallback(async () => {
-    if (!issue || saving) return;
+    if (saving) return;
 
-    const previousEditedValues = { ...editedValues };
-    const previousDatetimeValues = { ...datetimeValues };
+    const previousEditState = editState;
 
     try {
       const updateFields = buildUpdateFields();
@@ -574,8 +536,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
       setSaving(true);
 
       if (Object.keys(updateFields).length === 0) {
-        setEditedValues({});
-        setDatetimeValues({});
+        setEditState(createTaskDetailState(issue));
         return;
       }
 
@@ -588,69 +549,66 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
       if (!res.ok) {
         throw new Error(data.error || 'Update failed');
       }
-      await runIssueRefresh(issue, onRefresh);
-      setEditedValues({});
-      setDatetimeValues({});
+      const refreshedIssue = await runIssueRefresh(issue, onRefresh);
+      setEditState(createTaskDetailState(refreshedIssue));
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Unknown error');
       setEditMode(true);
-      setEditedValues(previousEditedValues);
-      setDatetimeValues(previousDatetimeValues);
+      setEditState(previousEditState);
     } finally {
       setSaving(false);
     }
-  }, [buildUpdateFields, datetimeValues, editedValues, issue, onRefresh, saving]);
+  }, [buildUpdateFields, editState, issue, onRefresh, saving]);
 
-  const isFieldEditable = (field: string): boolean => {
-    if (!editMode) return false;
-    if (editMetaLoading || !editMeta) return true;
-    const apiField = FIELD_API_MAPPING[field];
-    if (!apiField) return false;
-    const fieldMeta = editMeta.fields?.[apiField];
-    if (!fieldMeta) return false;
-    return fieldMeta.operations.includes('set') || fieldMeta.operations.includes('edit');
-  };
+  const cancelEditing = useCallback(() => {
+    setEditMode(false);
+    setEditState(createTaskDetailState(issue));
+  }, [issue]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F2' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
-        setEditMode((prev) => {
-          const next = !prev;
-          if (next && issue) {
-            setDatetimeValues({
-              startDate: formatDateTimeForInput(issue.fields.customfield_10300 || issue.fields.startdate),
-              dueDate: formatDateTimeForInput(issue.fields.customfield_10302 || issue.fields.duedate),
-              resolutionDate: formatDateTimeForInput(issue.fields.resolutiondate),
-            });
-          } else if (!next) {
-            setDatetimeValues({});
-          }
-          return next;
-        });
-      } else if (e.key === 'F10' && editModeRef.current && issue) {
+        if (editMode) {
+          cancelEditing();
+        } else {
+          setEditState(createTaskDetailState(issue));
+          setEditMode(true);
+        }
+      } else if (e.key === 'F10' && editMode) {
         e.preventDefault();
         void handleSave();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSave, issue]);
+  }, [cancelEditing, editMode, handleSave, issue]);
 
   useEffect(() => {
-    if (!issue) return;
-    setEditMetaLoading(true);
-    setEditMeta(null);
+    let cancelled = false;
+
     fetch(`/api/jira/edit-meta?key=${encodeURIComponent(issue.key)}`)
       .then((res) => res.json())
       .then((data) => {
-        setEditMeta(data);
+        if (!cancelled) {
+          setEditMeta(data);
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) {
+          setEditMeta(null);
+        }
+      })
       .finally(() => {
-        setEditMetaLoading(false);
+        if (!cancelled) {
+          setEditMetaLoading(false);
+        }
       });
-  }, [issue?.key]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.key]);
 
   const currentIssue = issue;
   if (!currentIssue) return null;
@@ -675,8 +633,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
       onMouseDown={(e) => {
         if (e.target !== e.currentTarget) return;
         if (editMode) {
-          setEditMode(false);
-          setEditedValues({});
+          cancelEditing();
         } else {
           onClose();
         }
@@ -767,7 +724,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                   Save
                 </button>
                 <button
-                  onClick={() => { setEditMode(false); setEditedValues({}); }}
+                  onClick={cancelEditing}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg"
                   style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
                 >
@@ -792,7 +749,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
               {t('dialog.link')}
             </a>
             <button
-              onClick={() => { if (editMode) { setEditMode(false); setEditedValues({}); } else { onClose(); } }}
+              onClick={() => { if (editMode) { cancelEditing(); } else { onClose(); } }}
               className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
               style={{ color: c.textMuted, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)' }}
               title={t('dialog.close')}
@@ -1012,7 +969,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                   isFieldEditable('startDate') ? (
                     <DateTimePickerField
                       value={datetimeValues.startDate}
-                      onChange={(v) => setDatetimeValues(prev => ({ ...prev, startDate: v }))}
+                      onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, startDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
                       theme={isLight ? 'light' : 'dark'}
@@ -1029,7 +986,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                   isFieldEditable('dueDate') ? (
                     <DateTimePickerField
                       value={datetimeValues.dueDate}
-                      onChange={(v) => setDatetimeValues(prev => ({ ...prev, dueDate: v }))}
+                      onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, dueDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
                       theme={isLight ? 'light' : 'dark'}
@@ -1046,7 +1003,7 @@ export default function TaskDetailModal({ issue, onClose, onLogWork, onRefresh }
                   isFieldEditable('resolutionDate') ? (
                     <DateTimePickerField
                       value={datetimeValues.resolutionDate}
-                      onChange={(v) => setDatetimeValues(prev => ({ ...prev, resolutionDate: v }))}
+                      onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, resolutionDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
                       theme={isLight ? 'light' : 'dark'}
