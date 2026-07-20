@@ -1,7 +1,94 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { JiraIssue, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
 import { buildWorklogAuthorJql, readProfileEmailFromRequestCookieHeader } from './profileAuthor.js';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+
+interface JiraNamedValue {
+  name?: string;
+  value?: string;
+  displayName?: string;
+}
+
+interface JiraPagedResponse<T> {
+  issues?: T[];
+  total?: number;
+  startAt?: number;
+  maxResults?: number;
+}
+
+interface JiraWorklog {
+  author?: JiraNamedValue;
+  timeSpentSeconds?: number;
+  started?: string;
+}
+
+type JiraUnknownFields = Record<string, unknown>;
+
+interface JiraIssueFields extends JiraUnknownFields {
+  summary?: string;
+  status?: JiraStatus;
+  assignee?: JiraUser | null;
+  reporter?: JiraUser | null;
+  priority?: JiraPriority | null;
+  issuetype?: { name?: string; iconUrl?: string };
+  timeestimate?: string | number | null;
+  timespent?: string | number | null;
+  timeoriginalestimate?: string | number | null;
+  startdate?: string | null;
+  duedate?: string | null;
+  resolutiondate?: string | null;
+  created?: string | null;
+  updated?: string | null;
+  labels?: string[];
+  sprint?: JiraSprint | null;
+  resolution?: JiraResolution | null;
+  description?: string | null;
+  subtasks?: JiraIssue[];
+  worklog?: { worklogs?: JiraWorklog[] };
+}
+
+interface JiraIssuePayload {
+  id?: string;
+  key?: string;
+  fields?: JiraIssueFields;
+}
+
+function isRecord(value: unknown): value is JiraUnknownFields {
+  return typeof value === 'object' && value !== null;
+}
+
+function getEpic(link: unknown, epic: unknown): JiraIssue['fields']['epic'] {
+  if (link) return { key: '', fields: { name: '', color: '' } };
+
+  const epicRecord = isRecord(epic) ? epic : null;
+  const epicFields = isRecord(epicRecord?.fields) ? epicRecord.fields : null;
+  if (!epicRecord) return null;
+
+  return {
+    key: typeof epicRecord.key === 'string' ? epicRecord.key : '',
+    fields: {
+      name: typeof epicFields?.name === 'string' ? epicFields.name : '',
+      color: typeof epicFields?.color === 'string' ? epicFields.color : '',
+    },
+  };
+}
+
+function getParent(parent: unknown): JiraIssue['fields']['parent'] {
+  const parentRecord = isRecord(parent) ? parent : null;
+  const parentFields = isRecord(parentRecord?.fields) ? parentRecord.fields : null;
+  if (!parentRecord) return null;
+
+  return {
+    key: typeof parentRecord.key === 'string' ? parentRecord.key : '',
+    fields: { summary: typeof parentFields?.summary === 'string' ? parentFields.summary : '' },
+  };
+}
+
+function toStringOrNull(value: string | number | null | undefined): string | null {
+  return typeof value === 'string' ? value : typeof value === 'number' && value ? String(value) : null;
+}
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -83,14 +170,13 @@ export async function GET(request: NextRequest) {
       const dateStart = new Date(`${selectedDate}T00:00:00`);
       const dateEnd = new Date(`${selectedDate}T23:59:59`);
 
-      const allWorklogIssues: any[] = [];
+      const allWorklogIssues: JiraIssuePayload[] = [];
       let startAt = 0;
       let hasFetched = false;
       let totalIssues = 0;
-      let response: any = null;
 
       while ((!hasFetched || allWorklogIssues.length < totalIssues) && allWorklogIssues.length < 2000) {
-        response = await axiosInstance.post('/rest/api/2/search', {
+        const response = await axiosInstance.post<JiraPagedResponse<JiraIssuePayload>>('/rest/api/2/search', {
           jql: worklogAuthorClause,
           fields: ['summary', 'status', 'issuetype', 'priority', 'assignee', 'timeestimate', 'timeoriginalestimate', 'timespent', 'worklog', 'duedate', 'resolutiondate', 'created', 'updated', 'labels', 'sprint', 'epic', 'resolution', 'startdate', 'customfield_10300', 'customfield_10302', 'reporter', 'parent', 'description'],
           startAt,
@@ -99,9 +185,9 @@ export async function GET(request: NextRequest) {
           headers: getAuthHeaders(),
         });
 
-        const responseData = response.data as { issues: any[]; total: number };
+        const responseData = response.data;
         totalIssues = responseData.total || 0;
-        allWorklogIssues.push(...responseData.issues);
+        allWorklogIssues.push(...(responseData.issues || []));
         startAt += maxResults;
         hasFetched = true;
         if (allWorklogIssues.length >= 2000) break;
@@ -109,8 +195,8 @@ export async function GET(request: NextRequest) {
 
       const issuesWithWorklogsOnDate = allWorklogIssues.filter((issue) => {
         const worklogs = issue.fields?.worklog?.worklogs || [];
-        return worklogs.some((wl: any) => {
-          const started = new Date(wl.started);
+        return worklogs.some((wl) => {
+          const started = new Date(wl.started || '');
           return started >= dateStart && started <= dateEnd;
         });
       });
@@ -172,44 +258,47 @@ export async function GET(request: NextRequest) {
         epic: (() => {
           const epic = issue.fields?.['epic-link'];
           if (epic) {
-            return typeof epic === 'object' ? (epic.fields?.name || epic.key || '') : String(epic);
+            const record = isRecord(epic) ? epic : null;
+            const fields = isRecord(record?.fields) ? record.fields : null;
+            return typeof fields?.name === 'string' ? fields.name : typeof record?.key === 'string' ? record.key : String(epic);
           }
           return '-';
         })(),
         labels: issue.fields?.labels || [],
         resolution: issue.fields?.resolution?.name || '-',
-        startDate: formatVNDate(issue.fields?.startdate || issue.fields?.customfield_10300),
-        dueDate: formatVNDate(issue.fields?.duedate || issue.fields?.customfield_10302),
+        startDate: formatVNDate(issue.fields?.startdate || (typeof issue.fields?.customfield_10300 === 'string' ? issue.fields.customfield_10300 : null)),
+        dueDate: formatVNDate(issue.fields?.duedate || (typeof issue.fields?.customfield_10302 === 'string' ? issue.fields.customfield_10302 : null)),
       }));
 
-      const fullIssues: Record<string, any> = {};
+      const fullIssues: Record<string, JiraIssue> = {};
       for (const issue of issuesWithWorklogsOnDate) {
-        fullIssues[issue.key] = {
-          id: issue.id,
-          key: issue.key,
+        const fields = issue.fields;
+        fullIssues[issue.key || ''] = {
+          id: issue.id || '',
+          key: issue.key || '',
           fields: {
-            summary: issue.fields?.summary || '',
-            status: issue.fields?.status || { id: '', name: 'Unknown', category: '' },
-            assignee: issue.fields?.assignee || null,
-            reporter: issue.fields?.reporter || null,
-            priority: issue.fields?.priority || null,
-            issuetype: issue.fields?.issuetype || { name: 'Issue', iconUrl: '' },
-            timeestimate: issue.fields?.timeestimate || null,
-            timespent: issue.fields?.timespent || null,
-            timeoriginalestimate: issue.fields?.timeoriginalestimate || null,
-            startdate: formatVNDate(issue.fields?.startdate || issue.fields?.customfield_10300),
-            duedate: formatVNDate(issue.fields?.duedate || issue.fields?.customfield_10302),
-            resolutiondate: formatVNDate(issue.fields?.resolutiondate),
-            created: formatVNDate(issue.fields?.created),
-            updated: formatVNDate(issue.fields?.updated),
-            labels: issue.fields?.labels || [],
-            sprint: issue.fields?.sprint || null,
-            resolution: issue.fields?.resolution || null,
-            description: issue.fields?.description || null,
-            epic: issue.fields?.['epic-link'] ? { key: '', fields: { name: '', color: '' } } : (issue.fields?.epic ? { key: issue.fields.epic.key || '', fields: { name: issue.fields.epic.fields?.name || '', color: issue.fields.epic.fields?.color || '' } } : null),
-            parent: issue.fields?.parent ? { key: issue.fields.parent.key || '', fields: { summary: issue.fields.parent.fields?.summary || '' } } : null,
-            subtasks: issue.fields?.subtasks || [],
-            issuekey: issue.key,
+            summary: fields?.summary || '',
+            status: fields?.status || { id: '', name: 'Unknown', category: '' },
+            assignee: fields?.assignee || null,
+            reporter: fields?.reporter || null,
+            priority: fields?.priority || null,
+            issuetype: fields?.issuetype?.name ? { name: fields.issuetype.name, iconUrl: fields.issuetype.iconUrl || '' } : { name: 'Issue', iconUrl: '' },
+            timeestimate: toStringOrNull(fields?.timeestimate),
+            timespent: toStringOrNull(fields?.timespent),
+            timeoriginalestimate: toStringOrNull(fields?.timeoriginalestimate),
+            startdate: formatVNDate(fields?.startdate || (typeof fields?.customfield_10300 === 'string' ? fields.customfield_10300 : null)),
+            duedate: formatVNDate(fields?.duedate || (typeof fields?.customfield_10302 === 'string' ? fields.customfield_10302 : null)),
+            resolutiondate: formatVNDate(fields?.resolutiondate),
+            created: formatVNDate(fields?.created),
+            updated: formatVNDate(fields?.updated),
+            labels: fields?.labels || [],
+            sprint: fields?.sprint || null,
+            resolution: fields?.resolution || null,
+            description: fields?.description || null,
+            epic: getEpic(fields?.['epic-link'], fields?.epic),
+            parent: getParent(fields?.parent),
+            subtasks: fields?.subtasks || [],
+            issuekey: issue.key || '',
           },
         };
       }
@@ -229,15 +318,14 @@ export async function GET(request: NextRequest) {
 
     const jql = `${worklogAuthorClause} ORDER BY updated DESC`;
 
-    const allIssues: any[] = [];
+    const allIssues: JiraIssuePayload[] = [];
     let startAt = 0;
     const maxApiResults = 100;
     let totalIssues = 0;
     let hasFetched = false;
-    let response: any = null;
 
     while ((!hasFetched || allIssues.length < totalIssues) && allIssues.length < 2000) {
-      response = await axiosInstance.post('/rest/api/2/search', {
+      const response = await axiosInstance.post<JiraPagedResponse<JiraIssuePayload>>('/rest/api/2/search', {
         jql,
         fields: ['worklog'],
         startAt,
@@ -246,9 +334,9 @@ export async function GET(request: NextRequest) {
         headers: getAuthHeaders(),
       });
 
-      const responseData = response.data as { issues: any[]; total: number };
+      const responseData = response.data;
       totalIssues = responseData.total || 0;
-      allIssues.push(...responseData.issues);
+      allIssues.push(...(responseData.issues || []));
       startAt += maxApiResults;
       hasFetched = true;
     }
@@ -264,7 +352,7 @@ export async function GET(request: NextRequest) {
     for (const issue of allIssues) {
       const worklogs = issue.fields?.worklog?.worklogs || [];
       for (const wl of worklogs) {
-        const wlStarted = new Date(wl.started);
+        const wlStarted = new Date(wl.started || '');
         if (wlStarted >= fromStart && wlStarted <= toEnd) {
           const startedDate = toLocalDateStr(wlStarted);
           const seconds = wl.timeSpentSeconds || 0;
@@ -282,10 +370,9 @@ export async function GET(request: NextRequest) {
       }));
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Hours-by-date API error:', error);
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+    const { status, detail } = getJiraErrorDetails(error);
     const message = `Jira API error (${status}): ${JSON.stringify(detail)}`;
     return NextResponse.json(
       { error: message },
