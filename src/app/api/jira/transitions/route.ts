@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 import { sanitizeTransitionFields } from '@/lib/jira/transitionPayload';
 
 const httpsAgent = new https.Agent({
@@ -82,13 +83,12 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(response.data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Transitions API error:', error);
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+    const { status, detail } = getJiraErrorDetails(error);
     return NextResponse.json(
       { error: `Jira API error (${status}): ${formatJiraError(detail)}` },
-      { status: status >= 400 ? status : 500 }
+      { status: typeof status === 'number' && status >= 400 ? status : 500 }
     );
   }
 }
@@ -127,13 +127,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Transition API error:', error);
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+    const { status, detail } = getJiraErrorDetails(error);
     return NextResponse.json(
       { error: `Jira API error (${status}): ${formatJiraError(detail)}` },
-      { status: status >= 400 ? status : 500 }
+      { status: typeof status === 'number' && status >= 400 ? status : 500 }
     );
   }
 }

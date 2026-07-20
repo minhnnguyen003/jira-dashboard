@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -64,9 +65,10 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'private, max-age=86400',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Jira avatar proxy error:', error);
-    const status = error.response?.status || 500;
+    const { status: errorStatus } = getJiraErrorDetails(error);
+    const status = typeof errorStatus === 'number' && errorStatus ? errorStatus : 500;
     return NextResponse.json(
       { error: 'Failed to load avatar' },
       { status: typeof status === 'number' ? status : 500 },

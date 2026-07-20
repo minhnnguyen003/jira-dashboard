@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -87,10 +88,10 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(sprints);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Jira sprints API error:', error);
     // If agile API fails (Jira Cloud), return empty
-    const status = error.response?.status || error.code || 'UNKNOWN';
+    const { status } = getJiraErrorDetails(error);
     if (status === 404 || status === 401) {
       return NextResponse.json([]);
     }

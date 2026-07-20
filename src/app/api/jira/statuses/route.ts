@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -57,10 +58,9 @@ export async function GET() {
       .map((s) => ({ id: s.id || '', name: s.name || '' }));
 
     return NextResponse.json(statuses);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Jira statuses API error:', error);
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+    const { status, detail } = getJiraErrorDetails(error);
     return NextResponse.json(
       { error: `Jira API error (${status}): ${JSON.stringify(detail)}` },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { JiraSearchResponse, JiraIssue, JiraGroupedData, DashboardIssue } from '@/types/jira';
 import axios from 'axios';
 import https from 'https';
+import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -47,9 +48,8 @@ export async function getSavedQueryJQL(savedQueryId: string): Promise<string> {
       headers: getAuthHeaders(),
     });
     return response.data.jql;
-  } catch (error: any) {
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+  } catch (error: unknown) {
+    const { status, detail } = getJiraErrorDetails(error);
     const message = `Jira API error fetching saved query (${status}): ${JSON.stringify(detail)}`;
     console.error('Jira Saved Query Error:', message);
     throw new Error(message);
@@ -80,9 +80,8 @@ export async function searchJiraByJQL(jql: string, startAt: number = 0, maxResul
     });
 
     return response.data as JiraSearchResponse;
-  } catch (error: any) {
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+  } catch (error: unknown) {
+    const { status, detail } = getJiraErrorDetails(error);
     const message = `Jira API error (${status}): ${JSON.stringify(detail)}`;
     console.error('Jira API Error:', message);
     throw new Error(message);
@@ -112,9 +111,8 @@ export async function getJiraIssueByKey(
     });
 
     return response.data as JiraIssue;
-  } catch (error: any) {
-    const status = error.response?.status || error.code || 'UNKNOWN';
-    const detail = error.response?.data || error.message || 'Unknown error';
+  } catch (error: unknown) {
+    const { status, detail } = getJiraErrorDetails(error);
     const message = `Jira API error fetching issue ${key} (${status}): ${JSON.stringify(detail)}`;
     console.error('Jira Issue Error:', message);
     throw new Error(message);
