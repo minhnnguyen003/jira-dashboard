@@ -1,8 +1,17 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
-import { filterAssigneeUsers, resolveAssigneeInput } from './assigneeComboboxHelpers.js';
+import {
+  chooseAssigneeInputState,
+  createAssigneeInputSnapshot,
+  createAssigneeInputState,
+  editAssigneeInputState,
+  filterAssigneeUsers,
+  reconcileAssigneeInputState,
+  resolveAssigneeInput,
+  runAssigneeBlurIfCurrent,
+} from './assigneeComboboxHelpers.js';
 
 export interface AssigneeOption {
   name: string;
@@ -26,16 +35,19 @@ interface InputProps extends Props {
 function AssigneeComboboxInput({ users, value, loading, error, onChange, selected }: InputProps) {
   const { t } = useLanguage();
   const listboxId = useId();
-  const [inputState, setInputState] = useState({
-    query: selected?.displayName || '',
-    valueAtLastInteraction: value,
-  });
+  const selectedIdentity = selected ? selected.email || selected.name : '';
+  const selectedDisplayName = selected?.displayName || '';
+  const externalSnapshot = createAssigneeInputSnapshot(value, selected);
+  const [inputState, setInputState] = useState(() => createAssigneeInputState(externalSnapshot));
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const blurTimeout = useRef<number | null>(null);
-  const visibleQuery = inputState.valueAtLastInteraction === value
-    ? inputState.query
-    : selected?.displayName || '';
+  const blurGeneration = useRef(0);
+  const reconciledInputState = reconcileAssigneeInputState(inputState, externalSnapshot);
+  if (reconciledInputState !== inputState) {
+    setInputState(reconciledInputState);
+  }
+  const visibleQuery = reconciledInputState.query;
   const filtered = useMemo<AssigneeOption[]>(
     () => filterAssigneeUsers(users, visibleQuery) as AssigneeOption[],
     [users, visibleQuery],
@@ -44,26 +56,36 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
   const hasOptions = open && available.length > 0;
   const activeOption = hasOptions ? available[highlighted] : undefined;
 
-  useEffect(() => () => {
-    if (blurTimeout.current !== null) window.clearTimeout(blurTimeout.current);
-  }, [value]);
-
-  const choose = (user: AssigneeOption | null) => {
+  const invalidatePendingBlur = useCallback(() => {
+    blurGeneration.current += 1;
     if (blurTimeout.current !== null) {
       window.clearTimeout(blurTimeout.current);
       blurTimeout.current = null;
     }
-    const nextValue = user ? user.email || user.name : '';
-    setInputState({ query: user?.displayName || '', valueAtLastInteraction: nextValue });
+  }, []);
+
+  useLayoutEffect(() => {
+    invalidatePendingBlur();
+    return invalidatePendingBlur;
+  }, [invalidatePendingBlur, value, selectedIdentity, selectedDisplayName]);
+
+  const choose = (user: AssigneeOption | null) => {
+    invalidatePendingBlur();
+    const nextInputState = chooseAssigneeInputState(user);
+    setInputState(nextInputState);
     setOpen(false);
-    onChange(nextValue);
+    onChange(nextInputState.snapshot.value);
   };
 
   const handleBlur = () => {
+    invalidatePendingBlur();
+    const scheduledGeneration = blurGeneration.current;
     blurTimeout.current = window.setTimeout(() => {
-      blurTimeout.current = null;
-      const exact = resolveAssigneeInput(users, visibleQuery);
-      choose(exact);
+      runAssigneeBlurIfCurrent(scheduledGeneration, blurGeneration.current, () => {
+        blurTimeout.current = null;
+        const exact = resolveAssigneeInput(users, visibleQuery);
+        choose(exact);
+      });
     }, 0);
   };
 
@@ -79,8 +101,9 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
       event.preventDefault();
       choose(available[highlighted]);
     } else if (event.key === 'Escape') {
+      invalidatePendingBlur();
       setOpen(false);
-      setInputState({ query: selected?.displayName || '', valueAtLastInteraction: value });
+      setInputState(createAssigneeInputState(externalSnapshot));
     }
   };
 
@@ -96,10 +119,14 @@ function AssigneeComboboxInput({ users, value, loading, error, onChange, selecte
         value={visibleQuery}
         placeholder={t('browseTasks.assigneePlaceholder')}
         className="input-field w-full px-3 py-2 text-sm"
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          invalidatePendingBlur();
+          setOpen(true);
+        }}
         onChange={(event) => {
           const nextQuery = event.target.value;
-          setInputState({ query: nextQuery, valueAtLastInteraction: value });
+          invalidatePendingBlur();
+          setInputState(editAssigneeInputState(externalSnapshot, nextQuery));
           setHighlighted(0);
           setOpen(true);
           if (!nextQuery) onChange('');

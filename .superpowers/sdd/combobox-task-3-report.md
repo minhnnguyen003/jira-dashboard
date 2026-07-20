@@ -82,3 +82,41 @@ Phụ lục này thay thế các chi tiết implementation ban đầu về `key=
 - `node --test`: PASS 81/81.
 - `npm run lint`: PASS, 0 error; còn 18 warning baseline ngoài phạm vi.
 - `git diff --check`: PASS; chỉ có thông báo chuyển LF sang CRLF ở working copy.
+
+## Phụ lục re-review snapshot và blur generation
+
+Phụ lục này thay thế state model chỉ lưu `{ query, valueAtLastInteraction }` và cleanup blur thụ động theo `[value]` ở follow-up trước.
+
+### Sửa đổi
+
+- External snapshot hiện lưu đủ `value`, selected user identity và `displayName`.
+- Pure reconcile trả nguyên state khi snapshot không đổi; khi snapshot đổi sẽ tạo state mới từ display hiện tại. Component dùng conditional state adjustment trong render theo pattern React cho phép, không remount và không set-state trong effect.
+- Users từ `[]` được populate async với cùng `value` vẫn cập nhật display vì identity/display trong snapshot thay đổi.
+- Chuỗi external A→B→A luôn reconcile qua snapshot B rồi snapshot A, không hồi sinh query edit cũ của A.
+- `chooseAssigneeInputState` tạo optimistic snapshot của user được chọn trước `onChange`; batched parent commit với cùng snapshot trả nguyên state nên không flicker/reset.
+- Blur dùng monotonic generation ref. External commit `(value, identity, displayName)` invalidates generation trong layout effect; focus/input/choose/Escape/new blur và unmount cũng invalidate.
+- Timer callback gọi `runAssigneeBlurIfCurrent` trước resolve/apply. Callback generation cũ không chạy apply và không ghi đè timeout mới.
+
+### TDD re-review
+
+1. RED pure state: bốn behavioral tests thất bại vì snapshot/reconcile/generation APIs chưa tồn tại; ba helper tests cũ vẫn pass.
+2. GREEN pure state: async users same value, A→B→A, optimistic batched choice và generation equality đều pass.
+3. RED component wiring: source contract thất bại vì component chưa dùng full snapshot, render reconcile và layout generation guard.
+4. GREEN component wiring: component + helper đạt 12/12 test; TypeScript và target lint sạch.
+5. RED stale callback: behavioral test yêu cầu callback runner thất bại vì API chưa tồn tại.
+6. GREEN stale callback: generation cũ không gọi callback; generation hiện tại gọi đúng một lần; component dùng runner ngay trong timer.
+
+### Self-review re-review
+
+- Conditional render state chỉ chạy khi pure reconcile trả object khác; snapshot không đổi giữ nguyên reference và không tạo render loop.
+- Layout effect không set-state, chỉ tăng generation và clear timer/ref; React lint chấp nhận.
+- Stale timer kiểm tra generation trước `resolveAssigneeInput`, nên external reset và tương tác mới không bị callback cũ ghi ngược.
+
+### Gates re-review
+
+- Component + helper tests: PASS 12/12.
+- `npx tsc --noEmit`: PASS.
+- Target lint component/test/helper: PASS, không warning/error.
+- `node --test`: PASS 86/86.
+- `npm run lint`: PASS, 0 error; còn 18 warning baseline ngoài phạm vi.
+- `git diff --check`: PASS; chỉ có thông báo chuyển LF sang CRLF ở working copy.
