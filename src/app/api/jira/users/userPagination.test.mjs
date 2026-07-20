@@ -56,34 +56,40 @@ test('continues after a short Jira page because the server may cap maxResults', 
   assert.deepEqual(users.map((user) => user.name), ['minh', 'an']);
 });
 
-test('rejects a repeated non-empty page instead of looping when Jira ignores startAt', async () => {
-  let calls = 0;
+test('accepts consecutive identical raw pages, then dedupes when later data arrives', async () => {
+  const pages = [[{ name: 'minh' }], [{ name: 'minh' }], [{ name: 'an' }], []];
 
-  await assert.rejects(
-    () => fetchAllJiraUsers(async () => {
-      calls += 1;
-      if (calls > 2) throw new Error('Test fetch guard reached');
-      return [{ name: 'minh' }];
-    }, 1, 5),
-    /repeated non-empty Jira users page/,
-  );
+  const users = await fetchAllJiraUsers(async () => pages.shift(), 1, 5);
 
-  assert.equal(calls, 2);
+  assert.deepEqual(users.map((user) => user.name), ['minh', 'an']);
 });
 
-test('rejects after the configured page cap instead of returning a partial list', async () => {
+test('allows exactly maxPages data pages followed by one empty termination page', async () => {
   let calls = 0;
+  const pages = [[{ name: 'minh' }], [{ name: 'an' }], []];
+
+  const users = await fetchAllJiraUsers(async () => {
+    calls += 1;
+    return pages.shift();
+  }, 1, 2);
+
+  assert.equal(calls, 3);
+  assert.deepEqual(users.map((user) => user.name), ['minh', 'an']);
+});
+
+test('rejects a non-empty data page after maxPages instead of returning a partial list', async () => {
+  let calls = 0;
+  const pages = [[{ name: 'minh' }], [{ name: 'an' }], [{ name: 'binh' }]];
 
   await assert.rejects(
     () => fetchAllJiraUsers(async () => {
       calls += 1;
-      if (calls > 2) throw new Error('Test fetch guard reached');
-      return [{ name: `user-${calls}` }];
+      return pages.shift();
     }, 1, 2),
     /exceeded the maximum of 2 Jira users pages/,
   );
 
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 test('rejects a non-finite page cap so callers cannot disable the safety limit', async () => {

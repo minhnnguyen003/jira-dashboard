@@ -39,28 +39,21 @@ export async function fetchAllJiraUsers(fetchPage, pageSize = 100, maxPages = 10
 
   const users = [];
   const seen = new Set();
-  const seenPageSignatures = new Set();
   let startAt = 0;
-  let requests = 0;
+  let dataPages = 0;
 
   while (true) {
-    if (requests >= maxPages) {
-      throw new Error(`Jira users pagination exceeded the maximum of ${maxPages} Jira users pages`);
-    }
-
     const rawPage = await fetchPage({ startAt, maxResults: pageSize });
-    requests += 1;
     const page = normalizeJiraUsers(rawPage);
 
     if (rawPage.length === 0) {
       break;
     }
 
-    const pageSignature = JSON.stringify(rawPage);
-    if (seenPageSignatures.has(pageSignature)) {
-      throw new Error('Jira users pagination received a repeated non-empty Jira users page');
+    if (dataPages >= maxPages) {
+      throw new Error(`Jira users pagination exceeded the maximum of ${maxPages} Jira users pages`);
     }
-    seenPageSignatures.add(pageSignature);
+    dataPages += 1;
 
     for (const user of page) {
       const identity = userIdentity(user);
