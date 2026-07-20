@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterAssigneeUsers, resolveAssigneeInput } from './assigneeCombobox.js';
+import { filterAssigneeUsers, resolveAssigneeInput } from './assigneeComboboxHelpers.js';
 
 const users = [
   { name: 'minh.nguyen', displayName: 'Minh Nguyễn', email: 'minh@etc.vn' },
