@@ -14,12 +14,12 @@ test('browse-tasks và work-tasks giữ nguyên object issuetype và fallback ti
   }
 });
 
-test('hours-by-date fullIssues giữ issuetype và số giây gốc', async () => {
+test('hours-by-date fullIssues giữ issuetype và đưa 0 hoặc chuỗi rỗng về null', async () => {
   const source = await readRoute('hours-by-date');
   assert.match(source, /issuetype: fields\?\.issuetype \|\| \{ name: 'Issue', iconUrl: '' \}/);
-  assert.match(source, /timeestimate: fields\?\.timeestimate \?\? null/);
-  assert.match(source, /timespent: fields\?\.timespent \?\? null/);
-  assert.match(source, /timeoriginalestimate: fields\?\.timeoriginalestimate \?\? null/);
+  assert.match(source, /timeestimate: fields\?\.timeestimate \|\| null/);
+  assert.match(source, /timespent: fields\?\.timespent \|\| null/);
+  assert.match(source, /timeoriginalestimate: fields\?\.timeoriginalestimate \|\| null/);
 });
 
 test('hours-by-date chặn Jira search response không có issues array', async () => {
