@@ -38,13 +38,13 @@ const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t
 
 const menuItems: MenuItem[] = [
   {
-    href: '/browse-tasks',
+    href: '/work-management/weekly-plan',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m6 10V3m-9 8h12M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     ),
-    label: 'Duyệt Task',
+    label: 'Kế hoạch tuần này',
   },
   {
     href: '/custom-jql',
@@ -138,6 +138,15 @@ const menuItems: MenuItem[] = [
         ),
       },
     ],
+  },
+  {
+    href: '/browse-tasks',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+      </svg>
+    ),
+    label: 'Duyệt Task',
   },
 ];
 
