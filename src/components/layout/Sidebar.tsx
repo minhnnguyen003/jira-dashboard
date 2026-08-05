@@ -28,6 +28,7 @@ const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t
   'Tạo Task': 'nav.createTask',
   'Tạo Task hàng loạt': 'nav.createTaskBulk',
   'Quản lý công việc': 'nav.workManagement',
+  'Kế hoạch tuần này': 'nav.weeklyPlan',
   'Duyệt Task': 'nav.browseTasks',
   'Thống kê': 'nav.statistics',
   'Thống kê tổng hợp': 'nav.statisticsOverview',
@@ -36,6 +37,15 @@ const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t
 };
 
 const menuItems: MenuItem[] = [
+  {
+    href: '/work-management/weekly-plan',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m6 10V3m-9 8h12M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+    label: 'Kế hoạch tuần này',
+  },
   {
     href: '/browse-tasks',
     icon: (
