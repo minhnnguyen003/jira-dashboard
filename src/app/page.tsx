@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function Home() {
-  redirect('/statistics/personal');
+  redirect('/work-management/weekly-plan');
 }
