@@ -1,6 +1,6 @@
 # Jira Dashboard
 
-Choose your language / Chọn ngôn ngữ:
+Chọn ngôn ngữ / Choose your language:
 - [English](README.md)
 - [Tiếng Việt](README.vi-VN.md)
 
@@ -10,87 +10,87 @@ Choose your language / Chọn ngôn ngữ:
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> A modern Jira work monitoring dashboard built with Next.js, TypeScript, and Chart.js.
+> Dashboard giám sát công việc Jira hiện đại, được xây dựng bằng Next.js, TypeScript và Chart.js.
 
-## ✨ Highlights
+## ✨ Điểm nổi bật
 
-- Query Jira issues using JQL
-- Compare Estimated vs Logged time in interactive bar charts
-- View and sort data in a paginated table
-- Group results by Assignee, Sprint, or Status
-- Support Bearer Token and Basic Auth
+- Truy vấn issue Jira bằng JQL
+- So sánh Estimated và Logged time bằng biểu đồ cột tương tác
+- Xem và sắp xếp dữ liệu trong bảng có phân trang
+- Nhóm kết quả theo Assignee, Sprint hoặc Status
+- Hỗ trợ Bearer Token và Basic Auth
 
 ## 🚀 Quick Start
 
-For new users, this is the fastest way to get the app running locally.
+Đối với người dùng mới, đây là cách nhanh nhất để chạy ứng dụng ở môi trường local.
 
-1. Install dependencies
+1. Cài đặt dependencies
    ```bash
    npm install
    ```
-2. Copy the environment sample file
+2. Sao chép file môi trường mẫu
    ```bash
    cp .env.example .env.local
    ```
-3. Fill in your Jira credentials in `.env.local`
+3. Điền thông tin Jira vào `.env.local`
    ```env
    JIRA_BASE_URL=https://your-domain.atlassian.net
    JIRA_BEARER_TOKEN=your-bearer-token-here
    NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
    ```
-4. Start the development server
+4. Khởi động server phát triển
    ```bash
    npm run dev
    ```
 
-Open http://localhost:3000 to view the dashboard.
+Mở http://localhost:3000 để xem dashboard.
 
-## 🛠️ Requirements
+## 🛠️ Yêu cầu
 
 - Node.js 22+
-- Jira Cloud or Jira Server account
-- API Token or Bearer Token
+- Tài khoản Jira Cloud hoặc Jira Server
+- API Token hoặc Bearer Token
 
-## ⚙️ Configuration
+## ⚙️ Cấu hình
 
-### Environment variables
+### Biến môi trường
 
 ```env
-# Jira instance URL
+# URL Jira instance
 JIRA_BASE_URL=https://your-domain.atlassian.net
 
-# Bearer Token (recommended)
+# Bearer Token (khuyến nghị)
 JIRA_BEARER_TOKEN=your-bearer-token-here
 
-# Or Basic Auth (email:api_token)
+# Hoặc Basic Auth (email:api_token)
 JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your-api-token-here
 
-# Public URL for issue links
+# URL công khai cho link issues
 NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
 ```
 
 ## 🐳 Docker
 
-The Dockerfile uses a multi-stage build with 4 stages: `base` → `deps` → `builder` → `runner`.
-It supports 3 environment modes through `--build-arg ENV_ENV`:
+Dockerfile dùng multi-stage build với 4 stages: `base` → `deps` → `builder` → `runner`.
+Hỗ trợ 3 chế độ environment qua `--build-arg ENV_ENV`:
 
-| Mode | Env file | Purpose |
+| Mode | File env | Mục đích |
 |---|---|---|
-| `local` | `.env.local` | Build with the env file embedded in the image |
-| `prod` | `.env.prod` | Build with the prod env file embedded |
-| `runtime` | none | Pass env through `-e` or `docker-compose` |
+| `local` | `.env.local` | Build với env file embedded trong image |
+| `prod` | `.env.prod` | Build với prod env file embedded |
+| `runtime` | không có | Truyền env qua `-e` hoặc `docker-compose` |
 
 ### Build image
 
 ```bash
-# Build with local env
+# Build với local env
 docker build --build-arg ENV_ENV=local -t jira-dashboard:local .
 
-# Build with prod env
+# Build với prod env
 docker build --build-arg ENV_ENV=prod -t jira-dashboard:prod .
 
-# Build without embedding env
+# Build không embed env
 docker build --build-arg ENV_ENV=runtime -t jira-dashboard:runtime .
 ```
 
@@ -100,7 +100,7 @@ docker build --build-arg ENV_ENV=runtime -t jira-dashboard:runtime .
 docker compose up -d --build
 ```
 
-## 📁 Project structure
+## 📁 Cấu trúc project
 
 ```text
 JiraDashboard/
@@ -118,14 +118,14 @@ JiraDashboard/
 
 ### GET /api/jira/search
 
-Search issues from Jira using JQL.
+Tìm kiếm issues từ Jira qua JQL.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `jql` | string | `project = YOUR_PROJECT ORDER BY updated DESC` | JQL query |
-| `groupBy` | string | `assignee` | Group by: assignee, sprint, status |
-| `startAt` | number | `0` | Offset for pagination |
-| `maxResults` | number | `50` | Maximum number of issues |
+| `groupBy` | string | `assignee` | Phân nhóm: assignee, sprint, status |
+| `startAt` | number | `0` | Offset cho pagination |
+| `maxResults` | number | `50` | Số issues tối đa |
 
 ## 🧪 Development
 
@@ -137,9 +137,9 @@ npm run lint
 
 ## 🚧 Troubleshooting
 
-- `401 Unauthorized`: check `JIRA_BEARER_TOKEN` or your Jira credentials
-- `404 Not Found`: verify `JIRA_BASE_URL`
-- `Chart not displaying`: confirm the API response contains valid data
+- `401 Unauthorized`: kiểm tra `JIRA_BEARER_TOKEN` hoặc thông tin Jira
+- `404 Not Found`: kiểm tra `JIRA_BASE_URL`
+- `Chart không hiển thị`: đảm bảo API trả về dữ liệu hợp lệ
 
 ## 📄 License
 
