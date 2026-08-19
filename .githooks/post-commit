@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+echo "[post-commit] Bắt đầu build và restart jira-dashboard-local..."
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-docker compose up -d --build --remove-orphans --force-recreate jira-dashboard-local
+docker compose up -d --build --force-recreate jira-dashboard-local
+
+echo "[post-commit] Hoàn tất."
