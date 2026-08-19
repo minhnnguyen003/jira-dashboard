@@ -171,6 +171,7 @@ function getActiveMenuLabels(pathname: string) {
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const isDark = useSyncExternalStore(subscribeToTheme, getStoredTheme, () => 'dark') === 'dark';
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => getActiveMenuLabels(pathname));
@@ -178,6 +179,7 @@ export default function Sidebar() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
+  const effectiveCollapsed = collapsed || isNarrowViewport;
 
   if (expandedPathname !== pathname) {
     setExpandedPathname(pathname);
@@ -185,8 +187,16 @@ export default function Sidebar() {
   }
 
   useEffect(() => {
-    document.getElementById('main-content')?.style.setProperty('margin-left', collapsed ? '56px' : '224px');
-  }, [collapsed]);
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsNarrowViewport(mediaQuery.matches);
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    document.getElementById('main-content')?.style.setProperty('margin-left', effectiveCollapsed ? '56px' : '224px');
+  }, [effectiveCollapsed]);
 
   useEffect(() => {
     if (isDark) {
@@ -235,9 +245,9 @@ export default function Sidebar() {
     {showCreateModal && <CreateTaskModal onClose={() => setShowCreateModal(false)} />}
     {loggingOut && <LogoutOverlay />}
     <aside
-      className="flex flex-col fixed top-0 left-0 h-screen z-50 transition-all duration-200"
+      className="app-sidebar flex flex-col fixed top-0 left-0 h-screen z-50 transition-all duration-200"
       style={{
-        width: collapsed ? 56 : 224,
+        width: effectiveCollapsed ? 56 : 224,
         borderRight: '1px solid var(--border)',
         boxShadow: '4px 0 24px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.03)',
       }}
@@ -262,7 +272,7 @@ export default function Sidebar() {
           borderBottom: '1px solid var(--border)',
         }}
       >
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <h1
             className="text-sm font-bold tracking-wide"
             style={{
@@ -283,7 +293,7 @@ export default function Sidebar() {
               color: 'var(--text-dim)',
               background: 'transparent',
             }}
-            onMouseEnter={(e) => { if (!collapsed) e.currentTarget.style.background = 'var(--accent-bg)'; }}
+            onMouseEnter={(e) => { if (!effectiveCollapsed) e.currentTarget.style.background = 'var(--accent-bg)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             title={isDark ? t('theme.light') : t('theme.dark')}
           >
@@ -315,12 +325,12 @@ export default function Sidebar() {
             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={effectiveCollapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
             </svg>
           </button>
         </div>
       </div>
-      <UserBar collapsed={collapsed} onLogout={() => setLoggingOut(true)} />
+      <UserBar collapsed={effectiveCollapsed} onLogout={() => setLoggingOut(true)} />
       <nav className="flex-1 py-3 px-2">
         <ul className="space-y-1">
           {menuItems.map((item) => {
@@ -348,7 +358,7 @@ export default function Sidebar() {
                     }}
                   >
                     <span className="flex-shrink-0">{item.icon}</span>
-                    {!collapsed && <span className="text-sm font-medium">{t(menuLabelKeys[item.label])}</span>}
+                    {!effectiveCollapsed && <span className="text-sm font-medium">{t(menuLabelKeys[item.label])}</span>}
                   </Link>
                 </li>
               );
@@ -357,24 +367,24 @@ export default function Sidebar() {
             return (
               <li key={item.label}>
                 <button
-                  onClick={() => !collapsed && toggleExpand(item.label)}
+                  onClick={() => !effectiveCollapsed && toggleExpand(item.label)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200"
                   style={{
                     color: active ? 'var(--bg)' : 'var(--text-dim)',
                     background: active ? 'var(--accent)' : 'transparent',
                     fontWeight: active ? 600 : 400,
                     boxShadow: active ? '0 2px 8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none',
-                    cursor: collapsed ? 'default' : 'pointer',
+                    cursor: effectiveCollapsed ? 'default' : 'pointer',
                   }}
                   onMouseEnter={(e) => {
-                    if (!collapsed && !active) e.currentTarget.style.background = 'var(--accent-bg)';
+                    if (!effectiveCollapsed && !active) e.currentTarget.style.background = 'var(--accent-bg)';
                   }}
                   onMouseLeave={(e) => {
                     if (!active) e.currentTarget.style.background = 'transparent';
                   }}
                 >
                   <span className="flex-shrink-0">{item.icon}</span>
-                  {!collapsed && (
+                  {!effectiveCollapsed && (
                     <>
                       <span className="text-sm font-medium flex-1 text-left">{t(menuLabelKeys[item.label])}</span>
                       <svg
@@ -388,7 +398,7 @@ export default function Sidebar() {
                     </>
                   )}
                 </button>
-                {!collapsed && expanded && item.subItems && (
+                {!effectiveCollapsed && expanded && item.subItems && (
                   <div className="mt-1.5 ml-5 space-y-0.5">
                     {item.subItems.map((sub) => {
                       const subActive = pathname === sub.href;

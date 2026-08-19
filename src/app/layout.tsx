@@ -34,7 +34,11 @@ export default function RootLayout({
         <LanguageProvider>
           <ProfileGate>
             <Sidebar />
-            <main className="flex-1 flex flex-col h-screen overflow-y-auto" id="main-content">
+            <main
+              className="main-content min-w-0 flex-1 flex flex-col h-screen overflow-y-auto transition-[margin] duration-200"
+              id="main-content"
+              style={{ marginLeft: 224 }}
+            >
               {children}
             </main>
           </ProfileGate>

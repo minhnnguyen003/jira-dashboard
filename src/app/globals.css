@@ -106,6 +106,16 @@ body::before {
   pointer-events: none;
   z-index: 0;
 }
+
+@media (max-width: 767px) {
+  .app-sidebar {
+    width: 56px !important;
+  }
+
+  .main-content {
+    margin-left: 56px !important;
+  }
+}
 body::after {
   content: '';
   position: fixed;

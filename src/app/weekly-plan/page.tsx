@@ -20,6 +20,11 @@ interface WeekPlanResponse {
   total: number;
 }
 
+const WEEK_PLAN_COLUMN_WIDTH = 240;
+const WEEK_PLAN_COLUMN_GAP = 16;
+const WEEK_PLAN_GRID_MIN_WIDTH = (WEEK_PLAN_COLUMNS.length * WEEK_PLAN_COLUMN_WIDTH)
+  + ((WEEK_PLAN_COLUMNS.length - 1) * WEEK_PLAN_COLUMN_GAP);
+
 function formatDateLabel(value: string) {
   return value && value !== '-' ? value : '—';
 }
@@ -96,7 +101,7 @@ export default function WeeklyPlanPage() {
   }, [fullIssues]);
 
   return (
-    <div className="flex flex-1 flex-col p-4 gap-4" style={{ minHeight: 'calc(100vh - 56px)' }}>
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4" style={{ minHeight: 'calc(100vh - 56px)' }}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{t('nav.weeklyPlan')}</h1>
@@ -117,12 +122,20 @@ export default function WeeklyPlanPage() {
           Đang tải task theo tuần...
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 overflow-x-auto pb-2" style={{ alignItems: 'start' }}>
+        <div className="min-w-0 flex-1 overflow-x-auto pb-2">
+          <div
+            className="grid gap-4"
+            style={{
+              gridTemplateColumns: `repeat(${WEEK_PLAN_COLUMNS.length}, minmax(${WEEK_PLAN_COLUMN_WIDTH}px, 1fr))`,
+              minWidth: WEEK_PLAN_GRID_MIN_WIDTH,
+              alignItems: 'start',
+            }}
+          >
           {WEEK_PLAN_COLUMNS.map((columnName) => (
-            <div key={columnName} className="flex min-h-[420px] flex-col rounded-2xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)', minWidth: 240 }}>
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{columnName}</span>
-                <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+            <div key={columnName} className="flex min-h-[420px] min-w-0 flex-col rounded-2xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="mb-3 flex min-w-0 items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-sm font-semibold" style={{ color: 'var(--text)' }} title={columnName}>{columnName}</span>
+                <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px]" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
                   {groupedTasks[columnName]?.length || 0}
                 </span>
               </div>
@@ -154,7 +167,7 @@ export default function WeeklyPlanPage() {
                         {task.priority || 'None'}
                       </span>
                     </div>
-                    <div className="mt-2 text-sm font-semibold" style={{ color: 'var(--text)' }}>{task.summary}</div>
+                    <div className="mt-2 break-words text-sm font-semibold [overflow-wrap:anywhere]" style={{ color: 'var(--text)' }}>{task.summary}</div>
                     <div className="mt-2 text-xs" style={{ color: 'var(--text-dim)' }}>
                       <div className="flex items-center justify-between gap-2">
                         <span>Start</span>
@@ -176,6 +189,7 @@ export default function WeeklyPlanPage() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 
