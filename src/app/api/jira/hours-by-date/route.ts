@@ -4,6 +4,7 @@ import https from 'https';
 import { JiraIssue, JiraIssueType, JiraPriority, JiraResolution, JiraSprint, JiraStatus, JiraUser } from '@/types/jira';
 import { buildWorklogAuthorJql, readProfileEmailFromRequestCookieHeader } from './profileAuthor.js';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { isWorkingDate } from '@/lib/calendarWorkingDays.js';
 
 interface JiraNamedValue {
   name?: string;
@@ -22,6 +23,11 @@ interface JiraWorklog {
   author?: JiraNamedValue;
   timeSpentSeconds?: number;
   started?: string;
+}
+
+interface CalendarDay {
+  date: string;
+  name: string;
 }
 
 type JiraUnknownFields = Record<string, unknown>;
@@ -135,9 +141,29 @@ function toLocalDateStr(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function isWorkingDay(d: Date) {
-  const dow = d.getDay();
-  return dow !== 0 && dow !== 6;
+async function loadCalendarDates(origin: string) {
+  try {
+    const [holidayResponse, additionalResponse] = await Promise.all([
+      fetch(`${origin}/holiday.json`),
+      fetch(`${origin}/additional.json`),
+    ]);
+    if (!holidayResponse.ok || !additionalResponse.ok) {
+      throw new Error('Calendar data is unavailable');
+    }
+
+    const holidayData = (await holidayResponse.json()) as { holidays?: CalendarDay[] };
+    const additionalData = (await additionalResponse.json()) as { additionalDays?: CalendarDay[] };
+
+    return {
+      holidayDates: new Set((holidayData.holidays || []).map((day) => day.date)),
+      additionalDates: new Set((additionalData.additionalDays || []).map((day) => day.date)),
+    };
+  } catch {
+    return {
+      holidayDates: new Set<string>(),
+      additionalDates: new Set<string>(),
+    };
+  }
 }
 
 function formatVNDate(dateStr: string | null | undefined): string {
@@ -332,6 +358,7 @@ export async function GET(request: NextRequest) {
 
     const fromStart = new Date(`${from}T00:00:00`);
     const toEnd = new Date(`${to}T23:59:59`);
+    const { holidayDates, additionalDates } = await loadCalendarDates(request.nextUrl.origin);
 
     const jql = `${worklogAuthorClause} ORDER BY updated DESC`;
 
@@ -368,8 +395,9 @@ export async function GET(request: NextRequest) {
     const dailyHours = new Map<string, number>();
 
     for (let d = new Date(fromStart); d <= toEnd; d.setDate(d.getDate() + 1)) {
-      if (isWorkingDay(d)) {
-        dailyHours.set(toLocalDateStr(d), 0);
+      const date = toLocalDateStr(d);
+      if (isWorkingDate(date, holidayDates, additionalDates)) {
+        dailyHours.set(date, 0);
       }
     }
 

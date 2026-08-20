@@ -14,13 +14,18 @@ function toIsoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+export function isWorkingDate(isoDate, holidayDates, additionalDates) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  return (isWeekday(date) && !holidayDates.has(isoDate)) || additionalDates.has(isoDate);
+}
+
 export function calculateWorkingDays(year, month, holidayDates, additionalDates) {
   const { start, end } = getMonthDateRange(year, month);
   let workingDays = 0;
 
   for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
     const iso = toIsoDate(cursor);
-    if ((isWeekday(cursor) && !holidayDates.has(iso)) || additionalDates.has(iso)) {
+    if (isWorkingDate(iso, holidayDates, additionalDates)) {
       workingDays += 1;
     }
   }
