@@ -44,7 +44,7 @@ const menuItems: MenuItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m6 10V3m-9 8h12M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     ),
-    label: 'Kế hoạch tuần này',
+    label: 'Bảng Kanban Tuần',
   },
   {
     href: '/custom-jql',
@@ -266,7 +266,7 @@ export default function Sidebar() {
       />
 
       <div
-        className="flex items-center justify-between px-3"
+        className={`flex items-center ${effectiveCollapsed ? 'justify-center px-0' : 'justify-between px-3'}`}
         style={{
           height: 56,
           borderBottom: '1px solid var(--border)',
@@ -286,37 +286,41 @@ export default function Sidebar() {
           </h1>
         )}
         <div className="flex items-center gap-1">
-          <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded-lg transition-all duration-200"
-            style={{
-              color: 'var(--text-dim)',
-              background: 'transparent',
-            }}
-            onMouseEnter={(e) => { if (!effectiveCollapsed) e.currentTarget.style.background = 'var(--accent-bg)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            title={isDark ? t('theme.light') : t('theme.dark')}
-          >
-            {isDark ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={toggleLanguage}
-            className="px-2 py-1 rounded-lg transition-all duration-200 text-[10px] font-semibold"
-            style={{ color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--border)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            title={t('language.switchTo', { language: language === 'vi' ? t('language.en') : t('language.vi') })}
-          >
-            {language === 'vi' ? 'EN' : 'VI'}
-          </button>
+          {!effectiveCollapsed && (
+            <>
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg transition-all duration-200"
+                style={{
+                  color: 'var(--text-dim)',
+                  background: 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                title={isDark ? t('theme.light') : t('theme.dark')}
+              >
+                {isDark ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={toggleLanguage}
+                className="px-2 py-1 rounded-lg transition-all duration-200 text-[10px] font-semibold"
+                style={{ color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--border)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                title={t('language.switchTo', { language: language === 'vi' ? t('language.en') : t('language.vi') })}
+              >
+                {language === 'vi' ? 'EN' : 'VI'}
+              </button>
+            </>
+          )}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg transition-all duration-200"
@@ -331,7 +335,7 @@ export default function Sidebar() {
         </div>
       </div>
       <UserBar collapsed={effectiveCollapsed} onLogout={() => setLoggingOut(true)} />
-      <nav className="flex-1 py-3 px-2">
+      <nav className={`flex-1 py-3 ${effectiveCollapsed ? 'px-1' : 'px-2'}`}>
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const active = isItemActive(item);
@@ -343,7 +347,7 @@ export default function Sidebar() {
                 <li key={item.label}>
                   <Link
                     href={item.href || '#'}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200"
+                    className={`flex items-center py-2 rounded-xl transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}
                     style={{
                       color: active ? 'var(--bg)' : 'var(--text-dim)',
                       background: active ? 'var(--accent)' : 'transparent',
@@ -368,7 +372,7 @@ export default function Sidebar() {
               <li key={item.label}>
                 <button
                   onClick={() => !effectiveCollapsed && toggleExpand(item.label)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200"
+                  className={`w-full flex items-center py-2 rounded-xl transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}
                   style={{
                     color: active ? 'var(--bg)' : 'var(--text-dim)',
                     background: active ? 'var(--accent)' : 'transparent',

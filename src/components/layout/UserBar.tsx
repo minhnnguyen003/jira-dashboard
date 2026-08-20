@@ -82,7 +82,7 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
   return (
     <div
       ref={containerRef}
-      className="relative px-2 py-2"
+      className={`relative py-2 ${collapsed ? 'px-1' : 'px-2'}`}
       style={{ borderBottom: '1px solid var(--border)' }}
     >
       <button
@@ -90,7 +90,7 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
         onClick={() => setMenuOpen((open) => !open)}
         aria-expanded={menuOpen}
         aria-haspopup="menu"
-        className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl transition-all duration-200"
+        className={`w-full flex items-center py-1.5 rounded-xl transition-all duration-200 ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-2'}`}
         style={{
           justifyContent: collapsed ? 'center' : 'flex-start',
           background: 'transparent',
