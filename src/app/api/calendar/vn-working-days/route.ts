@@ -1,37 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { calculateWorkingDays } from '@/lib/calendarWorkingDays.js';
 
 interface HolidayItem {
   date: string;
   name: string;
-}
-
-function getMonthDateRange(year: number, month: number) {
-  const start = new Date(Date.UTC(year, month - 1, 1));
-  const end = new Date(Date.UTC(year, month, 0));
-  return { start, end };
-}
-
-function isWeekday(date: Date) {
-  const day = date.getUTCDay();
-  return day >= 1 && day <= 5;
-}
-
-function toIsoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function calculateWorkingDays(year: number, month: number, holidayDates: Set<string>) {
-  const { start, end } = getMonthDateRange(year, month);
-  let workingDays = 0;
-
-  for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
-    const iso = toIsoDate(cursor);
-    if (isWeekday(cursor) && !holidayDates.has(iso)) {
-      workingDays += 1;
-    }
-  }
-
-  return workingDays;
 }
 
 export async function GET(request: NextRequest) {
@@ -44,25 +16,40 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${request.nextUrl.origin}/holiday.json`);
-    if (!response.ok) throw new Error(`Holiday file error: ${response.status}`);
-    const data = (await response.json()) as { holidays: HolidayItem[] };
+    const [holidayResponse, additionalResponse] = await Promise.all([
+      fetch(`${request.nextUrl.origin}/holiday.json`),
+      fetch(`${request.nextUrl.origin}/additional.json`),
+    ]);
+    if (!holidayResponse.ok) throw new Error(`Holiday file error: ${holidayResponse.status}`);
+    if (!additionalResponse.ok) throw new Error(`Additional file error: ${additionalResponse.status}`);
+
+    const holidayData = (await holidayResponse.json()) as { holidays: HolidayItem[] };
+    const additionalData = (await additionalResponse.json()) as { additionalDays: HolidayItem[] };
 
     const holidayDates = new Set<string>(
-      data.holidays
+      holidayData.holidays
         .filter((h) => {
           const d = new Date(`${h.date}T00:00:00.000Z`);
           return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month;
         })
         .map((h) => h.date)
     );
+    const additionalDates = new Set<string>(
+      additionalData.additionalDays
+        .filter((day) => {
+          const d = new Date(`${day.date}T00:00:00.000Z`);
+          return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month;
+        })
+        .map((day) => day.date)
+    );
 
     return NextResponse.json({
       year,
       month,
       holidayDates: Array.from(holidayDates).sort(),
-      workingDays: calculateWorkingDays(year, month, holidayDates),
-      source: 'local-holiday-json',
+      additionalDates: Array.from(additionalDates).sort(),
+      workingDays: calculateWorkingDays(year, month, holidayDates, additionalDates),
+      source: 'local-calendar-json',
     });
   } catch {
     const holidayDates = new Set<string>();
@@ -70,7 +57,8 @@ export async function GET(request: NextRequest) {
       year,
       month,
       holidayDates: [],
-      workingDays: calculateWorkingDays(year, month, holidayDates),
+      additionalDates: [],
+      workingDays: calculateWorkingDays(year, month, holidayDates, new Set<string>()),
       source: 'fallback',
     });
   }
