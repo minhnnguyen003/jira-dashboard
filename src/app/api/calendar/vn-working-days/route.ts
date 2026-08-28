@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const [holidayResponse, additionalResponse] = await Promise.all([
-      fetch(`${request.nextUrl.origin}/holiday.json`),
-      fetch(`${request.nextUrl.origin}/additional.json`),
+      fetch(`${request.nextUrl.origin}/holiday.json`, { cache: 'no-store' }),
+      fetch(`${request.nextUrl.origin}/additional.json`, { cache: 'no-store' }),
     ]);
     if (!holidayResponse.ok) throw new Error(`Holiday file error: ${holidayResponse.status}`);
     if (!additionalResponse.ok) throw new Error(`Additional file error: ${additionalResponse.status}`);

@@ -29,6 +29,7 @@ const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t
   'Tạo Task hàng loạt': 'nav.createTaskBulk',
   'Quản lý công việc': 'nav.workManagement',
   'Bảng Kanban Tuần': 'nav.weeklyPlan',
+  'Cấu hình lịch làm việc': 'nav.calendarConfig',
   'Duyệt Task': 'nav.browseTasks',
   'Thống kê': 'nav.statistics',
   'Thống kê tổng hợp': 'nav.statisticsOverview',
@@ -45,6 +46,15 @@ const menuItems: MenuItem[] = [
       </svg>
     ),
     label: 'Bảng Kanban Tuần',
+  },
+  {
+    href: '/calendar-config',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z" />
+      </svg>
+    ),
+    label: 'Cấu hình lịch làm việc',
   },
   {
     href: '/custom-jql',
