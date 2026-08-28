@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
+import LogWorkModal from '@/components/modal/LogWorkModal';
 import { JiraIssue } from '@/types/jira';
 import { formatDateForInput, getCurrentWeekRange, groupWeekPlanTasks, WEEK_PLAN_COLUMNS } from '@/lib/weekPlan.js';
 import { useLanguage } from '@/lib/i18n';
@@ -43,6 +44,7 @@ export default function WeeklyPlanPage() {
   const [tasks, setTasks] = useState<WeekPlanTask[]>([]);
   const [fullIssues, setFullIssues] = useState<Record<string, JiraIssue>>({});
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
+  const [showLogWorkModal, setShowLogWorkModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +101,21 @@ export default function WeeklyPlanPage() {
       setError(caughtError instanceof Error ? caughtError.message : 'Failed to load issue detail');
     }
   }, [fullIssues]);
+
+  const handleOpenLogWork = useCallback(() => {
+    setShowLogWorkModal(true);
+  }, []);
+
+  const handleCloseLogWork = useCallback(() => {
+    setShowLogWorkModal(false);
+  }, []);
+
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (!selectedIssue) return;
+    const refreshedIssue = await readIssueByKey(selectedIssue.key);
+    setSelectedIssue(refreshedIssue);
+    setFullIssues((previous) => ({ ...previous, [refreshedIssue.key]: refreshedIssue }));
+  }, [selectedIssue]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4" style={{ minHeight: 'calc(100vh - 56px)' }}>
@@ -196,6 +213,7 @@ export default function WeeklyPlanPage() {
       <TaskDetailModal
         issue={selectedIssue}
         onClose={() => setSelectedIssue(null)}
+        onLogWork={handleOpenLogWork}
         onRefresh={async (issue) => {
           const refreshedIssue = await readIssueByKey(issue.key);
           setSelectedIssue(refreshedIssue);
@@ -203,6 +221,16 @@ export default function WeeklyPlanPage() {
           return refreshedIssue;
         }}
       />
+
+      {showLogWorkModal && selectedIssue && (
+        <LogWorkModal
+          issueKey={selectedIssue.key}
+          issueSummary={selectedIssue.fields.summary}
+          originalEstimate={selectedIssue.fields.timeestimate}
+          onClose={handleCloseLogWork}
+          onSuccess={handleLogWorkSuccess}
+        />
+      )}
     </div>
   );
 }
