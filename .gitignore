@@ -46,3 +46,6 @@ Thumbs.db
 # Certificates / generated typings
 *.pem
 next-env.d.ts
+
+# Customize files
+/public/*.json
