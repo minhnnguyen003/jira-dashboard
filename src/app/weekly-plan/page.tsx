@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
 import { JiraIssue } from '@/types/jira';
-import { formatDateForInput, getCurrentWeekRange, groupWeekPlanTasks, WEEK_PLAN_COLUMNS } from '@/lib/weekPlan.js';
+import { formatDateForInput, getCurrentWeekRange, groupWeekPlanTasks, isInProgressTaskOverdue, WEEK_PLAN_COLUMNS } from '@/lib/weekPlan.js';
 import { useLanguage } from '@/lib/i18n';
 
 interface WeekPlanTask {
@@ -192,7 +192,9 @@ export default function WeeklyPlanPage() {
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-1">
                         <span>Due</span>
-                        <span>{formatDateLabel(task.dueDate)}</span>
+                        <span style={{ color: isInProgressTaskOverdue(task) ? 'var(--danger)' : undefined }}>
+                          {formatDateLabel(task.dueDate)}
+                        </span>
                       </div>
                     </div>
                   </button>

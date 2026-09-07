@@ -1,10 +1,10 @@
 export const WEEK_PLAN_COLUMNS = [
+  'Overdue',
   'Open',
   'In Progress',
   'Closed / Resolved',
   'Pending',
   'Cancelled',
-  'Overdue',
 ];
 
 function normalizeStatus(status = '') {
@@ -37,6 +37,11 @@ function parseDisplayDateTime(value) {
 
   const [hours = 0, minutes = 0] = String(timePart).split(':').map((segment) => Number(segment) || 0);
   return new Date(year, month - 1, day, hours, minutes, 0);
+}
+
+export function isInProgressTaskOverdue(task, referenceDate = new Date()) {
+  const dueDate = parseDisplayDateTime(task.dueDate);
+  return normalizeStatus(task.status) === 'in progress' && Boolean(dueDate && dueDate < referenceDate);
 }
 
 export function getCurrentWeekRange(referenceDate = new Date()) {
@@ -78,7 +83,7 @@ export function groupWeekPlanTasks(tasks, referenceDate = new Date()) {
   sortedTasks.forEach((task) => {
     const status = normalizeStatus(task.status);
     const dueDate = parseDisplayDateTime(task.dueDate);
-    const isOverdue = dueDate && dueDate < now && !['cancelled', 'canceled', 'resolved', 'closed', 'done', 'pending'].includes(status);
+    const isOverdueOpenTask = status === 'open' && Boolean(dueDate && dueDate < now);
 
     let bucket = 'Open';
 
@@ -94,7 +99,7 @@ export function groupWeekPlanTasks(tasks, referenceDate = new Date()) {
       bucket = 'Open';
     }
 
-    if (isOverdue) {
+    if (isOverdueOpenTask) {
       bucket = 'Overdue';
     }
 
