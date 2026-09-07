@@ -5,7 +5,8 @@ export const DATE_FIELD_OPTIONS = [
   { value: 'endDate', label: 'End Date', jqlField: 'cf[10302]', orderBy: 'cf[10302]' },
 ];
 
-const DATE_FIELD_VALUES = new Set(DATE_FIELD_OPTIONS.map((option) => option.value));
+const CALENDAR_RANGE_FIELD = 'calendarRange';
+const DATE_FIELD_VALUES = new Set([...DATE_FIELD_OPTIONS.map((option) => option.value), CALENDAR_RANGE_FIELD]);
 
 export function normalizeDateField(dateField) {
   if (!dateField || !DATE_FIELD_VALUES.has(dateField)) {
@@ -21,6 +22,18 @@ export function getDateFieldConfig(dateField) {
 }
 
 export function buildDateClauses({ from, to, dateField }) {
+  if (dateField === CALENDAR_RANGE_FIELD) {
+    const clauses = [];
+    if (to) clauses.push(`cf[10300] <= "${to} 23:59"`);
+    if (from) clauses.push(`cf[10302] >= "${from} 00:00"`);
+
+    return {
+      clauses,
+      orderBy: 'cf[10300] DESC',
+      config: { value: CALENDAR_RANGE_FIELD, label: 'Calendar Range', jqlField: 'cf[10300]', orderBy: 'cf[10300]' },
+    };
+  }
+
   const config = getDateFieldConfig(dateField);
   const clauses = [];
 

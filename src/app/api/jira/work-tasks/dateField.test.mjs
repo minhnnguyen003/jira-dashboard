@@ -63,6 +63,20 @@ test('buildDateClauses builds created-date filters when selected', () => {
   assert.equal(result.orderBy, 'created DESC');
 });
 
+test('buildDateClauses lấy task giao với khoảng thời gian lịch', () => {
+  const result = buildDateClauses({
+    from: '2026-09-01',
+    to: '2026-09-30',
+    dateField: 'calendarRange',
+  });
+
+  assert.deepEqual(result.clauses, [
+    'cf[10300] <= "2026-09-30 23:59"',
+    'cf[10302] >= "2026-09-01 00:00"',
+  ]);
+  assert.equal(result.orderBy, 'cf[10300] DESC');
+});
+
 test('date field options expose fixed dropdown values in the intended order', () => {
   assert.deepEqual(
     DATE_FIELD_OPTIONS.map((option) => option.value),
