@@ -10,7 +10,7 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat tzdata
 
 COPY package.json package-lock.json ./
 
@@ -49,6 +49,7 @@ ARG ENV_ENV=runtime
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV TZ=Asia/Ho_Chi_Minh
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

@@ -5,6 +5,7 @@ import { JiraIssue, JiraIssueType, JiraPriority, JiraResolution, JiraSprint, Jir
 import { buildDateClauses, normalizeDateField } from './dateField.js';
 import { buildAssigneeJql, readProfileEmailFromRequestCookieHeader } from './profileAssignee.js';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { formatDateTimeInZone } from '@/lib/dateTime.js';
 
 interface JiraNamedValue {
   name?: string;
@@ -135,18 +136,7 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 function formatVNDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} ${hours}:${minutes}`;
-  } catch {
-    return '-';
-  }
+  return formatDateTimeInZone(dateStr);
 }
 
 export async function GET(request: NextRequest) {

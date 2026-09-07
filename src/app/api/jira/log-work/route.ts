@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import https from 'https';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { toJiraDateTimeInZone } from '@/lib/dateTime.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -59,22 +60,11 @@ export async function POST(request: NextRequest) {
     };
 
     if (started) {
-      // Jira API requires ISO 8601 format with timezone offset: 2026-06-25T00:00:00.000+0000
-      const startedDate = new Date(started);
-      const offset = startedDate.getTimezoneOffset();
-      const offsetHours = Math.floor(Math.abs(offset) / 60);
-      const offsetMinutes = Math.abs(offset) % 60;
-      const offsetSign = offset <= 0 ? '+' : '-';
-      const offsetStr = `${offsetSign}${String(offsetHours).padStart(2, '0')}${String(offsetMinutes).padStart(2, '0')}`;
-
-      const year = startedDate.getFullYear();
-      const month = String(startedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(startedDate.getDate()).padStart(2, '0');
-      const hours = String(startedDate.getHours()).padStart(2, '0');
-      const minutes = String(startedDate.getMinutes()).padStart(2, '0');
-      const seconds = String(startedDate.getSeconds()).padStart(2, '0');
-
-      payload.started = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000${offsetStr}`;
+      const jiraStarted = toJiraDateTimeInZone(started);
+      if (!jiraStarted) {
+        return NextResponse.json({ error: 'Started date is invalid' }, { status: 400 });
+      }
+      payload.started = jiraStarted;
     }
 
     if (workDescription) {

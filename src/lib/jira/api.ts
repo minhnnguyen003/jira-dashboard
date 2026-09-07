@@ -2,6 +2,7 @@ import { JiraSearchResponse, JiraIssue, JiraGroupedData, DashboardIssue } from '
 import axios from 'axios';
 import https from 'https';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
+import { formatDateInZone } from '@/lib/dateTime.js';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: (process.env.JIRA_SKIP_TLS === 'true') ? false : true,
@@ -161,9 +162,7 @@ function getOriginalEstimate(issue: JiraIssue): string {
 }
 
 function formatDateTime(dateStr: string | null): string {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-GB');
+  return formatDateInZone(dateStr);
 }
 
 function formatTime(seconds: number | null): string {

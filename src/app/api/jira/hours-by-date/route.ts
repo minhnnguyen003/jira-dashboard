@@ -5,6 +5,7 @@ import { JiraIssue, JiraIssueType, JiraPriority, JiraResolution, JiraSprint, Jir
 import { buildWorklogAuthorJql, readProfileEmailFromRequestCookieHeader } from './profileAuthor.js';
 import { getJiraErrorDetails } from '@/lib/jira/apiError.js';
 import { isWorkingDate } from '@/lib/calendarWorkingDays.js';
+import { formatDateTimeInZone, getDayRangeInZone, toDateInZone } from '@/lib/dateTime.js';
 
 interface JiraNamedValue {
   name?: string;
@@ -133,14 +134,6 @@ function getAuthHeaders(): Record<string, string> {
   throw new Error('Jira credentials not configured. Set JIRA_BEARER_TOKEN or JIRA_EMAIL+JIRA_API_TOKEN');
 }
 
-function pad(n: number) {
-  return String(n).padStart(2, '0');
-}
-
-function toLocalDateStr(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 async function loadCalendarDates(origin: string) {
   try {
     const [holidayResponse, additionalResponse] = await Promise.all([
@@ -167,18 +160,7 @@ async function loadCalendarDates(origin: string) {
 }
 
 function formatVNDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${day}/${month}/${year} ${hours}:${minutes}`;
-  } catch {
-    return '-';
-  }
+  return formatDateTimeInZone(dateStr);
 }
 
 export async function GET(request: NextRequest) {
@@ -203,8 +185,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (selectedDate) {
-      const dateStart = new Date(`${selectedDate}T00:00:00`);
-      const dateEnd = new Date(`${selectedDate}T23:59:59`);
+      const selectedDayRange = getDayRangeInZone(selectedDate);
+      if (!selectedDayRange) {
+        return NextResponse.json({ error: 'Selected date is invalid' }, { status: 400 });
+      }
+      const dateStart = new Date(selectedDayRange.start);
+      const dateEnd = new Date(selectedDayRange.end);
 
       const allWorklogIssues: JiraIssuePayload[] = [];
       let startAt = 0;
@@ -356,8 +342,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const fromStart = new Date(`${from}T00:00:00`);
-    const toEnd = new Date(`${to}T23:59:59`);
+    const fromDayRange = getDayRangeInZone(from);
+    const toDayRange = getDayRangeInZone(to);
+    if (!fromDayRange || !toDayRange) {
+      return NextResponse.json({ error: 'Date range is invalid' }, { status: 400 });
+    }
+    const fromStart = new Date(fromDayRange.start);
+    const toEnd = new Date(toDayRange.end);
     const { holidayDates, additionalDates } = await loadCalendarDates(request.nextUrl.origin);
 
     const jql = `${worklogAuthorClause} ORDER BY updated DESC`;
@@ -394,8 +385,10 @@ export async function GET(request: NextRequest) {
 
     const dailyHours = new Map<string, number>();
 
-    for (let d = new Date(fromStart); d <= toEnd; d.setDate(d.getDate() + 1)) {
-      const date = toLocalDateStr(d);
+    const firstDate = new Date(`${from}T00:00:00.000Z`);
+    const lastDate = new Date(`${to}T00:00:00.000Z`);
+    for (let d = firstDate; d <= lastDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      const date = d.toISOString().slice(0, 10);
       if (isWorkingDate(date, holidayDates, additionalDates)) {
         dailyHours.set(date, 0);
       }
@@ -406,7 +399,7 @@ export async function GET(request: NextRequest) {
       for (const wl of worklogs) {
         const wlStarted = new Date(wl.started || '');
         if (wlStarted >= fromStart && wlStarted <= toEnd) {
-          const startedDate = toLocalDateStr(wlStarted);
+          const startedDate = toDateInZone(wlStarted);
           const seconds = wl.timeSpentSeconds || 0;
           const current = dailyHours.get(startedDate) || 0;
           dailyHours.set(startedDate, current + seconds);
