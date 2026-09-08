@@ -37,6 +37,17 @@ test('groupWeekPlanTasks puts only overdue Open tasks in the Overdue column', ()
   assert.equal(grouped['Cancelled'].length, 1);
 });
 
+test('groupWeekPlanTasks does not mark a future dd/MM deadline as overdue', () => {
+  const tasks = [
+    { key: 'ABC-7', summary: 'Task chưa đến hạn', status: 'Open', dueDate: '08/09/2026 17:00' },
+  ];
+
+  const grouped = groupWeekPlanTasks(tasks, new Date(2026, 8, 8, 10, 0, 0));
+
+  assert.deepEqual(grouped.Overdue, []);
+  assert.deepEqual(grouped.Open.map((task) => task.key), ['ABC-7']);
+});
+
 test('isInProgressTaskOverdue only flags expired In Progress tasks', () => {
   const now = new Date('2026-08-05T12:00:00');
 
