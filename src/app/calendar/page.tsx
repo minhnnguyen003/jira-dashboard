@@ -27,6 +27,7 @@ interface CalendarSegment {
   weekIndex: number;
   startDayIndex: number;
   span: number;
+  lane: number;
 }
 
 const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -153,7 +154,8 @@ export default function CalendarPage() {
             {Array.from({ length: visibleDays.length / 7 }, (_, weekIndex) => {
               const weekDays = visibleDays.slice(weekIndex * 7, weekIndex * 7 + 7);
               const segments = segmentsByWeek.get(weekIndex) || [];
-              const weekHeight = Math.max(128, 48 + segments.length * 27);
+              const laneCount = segments.length ? Math.max(...segments.map((segment) => segment.lane)) + 1 : 0;
+              const weekHeight = Math.max(128, 48 + laneCount * 27);
               return (
                 <div key={weekDays[0].toISOString()} className="relative grid grid-cols-7 border-b last:border-b-0" style={{ minHeight: weekHeight, borderColor: 'var(--border)' }}>
                   {weekDays.map((day) => {
@@ -162,8 +164,8 @@ export default function CalendarPage() {
                     return <div key={day.toISOString()} className="border-r p-2 last:border-r-0" style={{ borderColor: 'var(--border)', background: isCurrentMonth ? 'transparent' : 'rgba(127,127,127,0.06)' }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium" style={{ color: isToday ? 'var(--bg)' : isCurrentMonth ? 'var(--text)' : 'var(--text-muted)', background: isToday ? 'var(--accent)' : 'transparent' }}>{day.getDate()}</span></div>;
                   })}
                   <div className="pointer-events-none absolute inset-x-0 top-9 grid grid-cols-7 gap-y-1 px-1">
-                    {segments.map((segment, lane) => (
-                      <button key={`${segment.task.key}-${segment.weekIndex}-${segment.startDayIndex}`} type="button" onClick={() => { void openTaskDetail(segment.task); }} className="pointer-events-auto h-6 truncate rounded px-2 text-left text-[11px] font-medium shadow-sm" title={`${segment.task.key}: ${segment.task.summary}`} style={{ gridColumn: `${segment.startDayIndex + 1} / span ${segment.span}`, gridRow: lane + 1, color: 'white', background: getStatusColor(segment.task.status) }}>
+                    {segments.map((segment) => (
+                      <button key={`${segment.task.key}-${segment.weekIndex}-${segment.startDayIndex}`} type="button" onClick={() => { void openTaskDetail(segment.task); }} className="pointer-events-auto h-6 truncate rounded px-2 text-left text-[11px] font-medium shadow-sm" title={`${segment.task.key}: ${segment.task.summary}`} style={{ gridColumn: `${segment.startDayIndex + 1} / span ${segment.span}`, gridRow: segment.lane + 1, color: 'white', background: getStatusColor(segment.task.status) }}>
                         {segment.task.key} · {segment.task.summary}
                       </button>
                     ))}

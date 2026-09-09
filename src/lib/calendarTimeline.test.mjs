@@ -40,6 +40,40 @@ test('bỏ qua task thiếu ngày bắt đầu hoặc hạn hoàn thành', () =>
   assert.deepEqual(segments, []);
 });
 
+test('xếp các task không giao ngày vào cùng một hàng trong tuần', () => {
+  assert.equal(typeof calendarTimeline?.assignCalendarSegmentLanes, 'function');
+
+  const segments = calendarTimeline.assignCalendarSegmentLanes([
+    { task: { key: 'JIRA-1' }, weekIndex: 0, startDayIndex: 0, span: 2 },
+    { task: { key: 'JIRA-2' }, weekIndex: 0, startDayIndex: 3, span: 2 },
+    { task: { key: 'JIRA-3' }, weekIndex: 0, startDayIndex: 1, span: 3 },
+  ]);
+
+  assert.deepEqual(
+    segments.map(({ task, lane }) => ({ key: task.key, lane })),
+    [
+      { key: 'JIRA-1', lane: 0 },
+      { key: 'JIRA-2', lane: 0 },
+      { key: 'JIRA-3', lane: 1 },
+    ],
+  );
+});
+
+test('tái sử dụng hàng dù dữ liệu task không theo thứ tự ngày bắt đầu', () => {
+  const segments = calendarTimeline.assignCalendarSegmentLanes([
+    { task: { key: 'JIRA-THU' }, weekIndex: 0, startDayIndex: 4, span: 1 },
+    { task: { key: 'JIRA-MON' }, weekIndex: 0, startDayIndex: 1, span: 2 },
+  ]);
+
+  assert.deepEqual(
+    segments.map(({ task, lane }) => ({ key: task.key, lane })),
+    [
+      { key: 'JIRA-THU', lane: 0 },
+      { key: 'JIRA-MON', lane: 0 },
+    ],
+  );
+});
+
 test('mở rộng tháng thành các tuần lịch hoàn chỉnh', () => {
   assert.equal(typeof calendarTimeline?.getMonthCalendarRange, 'function');
 
