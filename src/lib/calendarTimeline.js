@@ -43,7 +43,7 @@ export function buildCalendarTaskSegments(tasks, visibleStart, visibleEnd) {
       const remainingDays = Math.floor((end.getTime() - cursor.getTime()) / 86400000) + 1;
       const span = Math.min(daysUntilSaturday + 1, remainingDays);
 
-      segments.push({ task, weekIndex, startDayIndex, span });
+      segments.push({ task, weekIndex, startDayIndex, span, isMultiDay: taskEnd > taskStart });
       cursor = addDays(cursor, span);
     }
 
@@ -60,28 +60,39 @@ export function assignCalendarSegmentLanes(segments) {
   const sortedSegments = segments
     .map((segment, index) => ({ segment, index }))
     .sort((left, right) => left.segment.weekIndex - right.segment.weekIndex
+      || Number(Boolean(left.segment.isMultiDay)) - Number(Boolean(right.segment.isMultiDay))
       || left.segment.startDayIndex - right.segment.startDayIndex
       || right.segment.span - left.segment.span
       || left.index - right.index);
 
   sortedSegments.forEach(({ segment, index }) => {
-    const weekLanes = lanesByWeek.get(segment.weekIndex) || [];
+    const weekLanes = lanesByWeek.get(segment.weekIndex) || [[], []];
+    const laneType = segment.isMultiDay ? 1 : 0;
+    const lanes = weekLanes[laneType];
     const segmentStart = segment.startDayIndex;
     const segmentEnd = segment.startDayIndex + segment.span - 1;
-    let lane = weekLanes.findIndex((lastOccupiedDay) => lastOccupiedDay < segmentStart);
+    let lane = lanes.findIndex((lastOccupiedDay) => lastOccupiedDay < segmentStart);
 
     if (lane === -1) {
-      lane = weekLanes.length;
-      weekLanes.push(segmentEnd);
+      lane = lanes.length;
+      lanes.push(segmentEnd);
     } else {
-      weekLanes[lane] = segmentEnd;
+      lanes[lane] = segmentEnd;
     }
 
     lanesByWeek.set(segment.weekIndex, weekLanes);
-    laneBySegment.set(index, lane);
+    laneBySegment.set(index, { lane, laneType });
   });
 
-  return segments.map((segment, index) => ({ ...segment, lane: laneBySegment.get(index) }));
+  return segments.map((segment, index) => {
+    const assignment = laneBySegment.get(index);
+    const normalLaneCount = lanesByWeek.get(segment.weekIndex)[0].length;
+
+    return {
+      ...segment,
+      lane: assignment.lane + (assignment.laneType === 1 ? normalLaneCount : 0),
+    };
+  });
 }
 
 export function getMonthCalendarRange(month) {

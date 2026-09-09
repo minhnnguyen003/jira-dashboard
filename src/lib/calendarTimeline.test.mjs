@@ -74,6 +74,23 @@ test('tái sử dụng hàng dù dữ liệu task không theo thứ tự ngày b
   );
 });
 
+test('đặt task kéo dài ở các lane dưới task một ngày', () => {
+  const segments = calendarTimeline.buildCalendarTaskSegments([
+    { key: 'JIRA-SPAN-1', startDate: '2026-09-01', dueDate: '2026-09-03' },
+    { key: 'JIRA-SINGLE', startDate: '2026-09-01', dueDate: '2026-09-01' },
+    { key: 'JIRA-SPAN-2', startDate: '2026-09-05', dueDate: '2026-09-06' },
+  ], new Date(2026, 7, 30), new Date(2026, 8, 5));
+
+  assert.deepEqual(
+    segments.map(({ task, lane }) => ({ key: task.key, lane })),
+    [
+      { key: 'JIRA-SPAN-1', lane: 1 },
+      { key: 'JIRA-SINGLE', lane: 0 },
+      { key: 'JIRA-SPAN-2', lane: 1 },
+    ],
+  );
+});
+
 test('mở rộng tháng thành các tuần lịch hoàn chỉnh', () => {
   assert.equal(typeof calendarTimeline?.getMonthCalendarRange, 'function');
 
