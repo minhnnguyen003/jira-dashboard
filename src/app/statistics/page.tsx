@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import JiraBarChart from '@/components/chart/JiraBarChart';
 import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
+import LogWorkModal from '@/components/modal/LogWorkModal';
 import AssigneeMultiSelect from '@/components/form/AssigneeMultiSelect';
 import { JiraGroupedData, DashboardIssue, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
@@ -89,12 +90,13 @@ export default function StatisticsPage() {
   const timeEst = data?.aggregated.reduce((s, i) => s + i.estimatedSeconds, 0) || 0;
   const timeLogged = data?.aggregated.reduce((s, i) => s + i.loggedSeconds, 0) || 0;
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
+  const [showLogWorkModal, setShowLogWorkModal] = useState(false);
 
   const handleTaskClick = useCallback((issue: JiraIssue) => {
     setSelectedIssue(issue);
   }, []);
 
-  const handleCloseDialog = useCallback(() => {
+  const handleCloseTaskDetail = useCallback(() => {
     setSelectedIssue(null);
   }, []);
 
@@ -132,6 +134,20 @@ export default function StatisticsPage() {
     });
     return refreshedIssue;
   }, [assignees, fetchData, groupBy, selectedQuery, storedQueries]);
+
+  const handleOpenLogWork = useCallback(() => {
+    setShowLogWorkModal(true);
+  }, []);
+
+  const handleCloseLogWork = useCallback(() => {
+    setShowLogWorkModal(false);
+  }, []);
+
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (selectedIssue) {
+      await handleRefreshTask(selectedIssue);
+    }
+  }, [handleRefreshTask, selectedIssue]);
 
   return (
     <div className="flex flex-col flex-1 p-6">
@@ -248,7 +264,17 @@ export default function StatisticsPage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} onRefresh={handleRefreshTask} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseTaskDetail} onLogWork={handleOpenLogWork} onRefresh={handleRefreshTask} />
+
+      {showLogWorkModal && selectedIssue && (
+        <LogWorkModal
+          issueKey={selectedIssue.key}
+          issueSummary={selectedIssue.fields.summary}
+          originalEstimate={selectedIssue.fields.timeestimate}
+          onClose={handleCloseLogWork}
+          onSuccess={handleLogWorkSuccess}
+        />
+      )}
     </div>
   );
 }

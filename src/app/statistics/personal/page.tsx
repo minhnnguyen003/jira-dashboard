@@ -133,7 +133,7 @@ export default function PersonalStatisticsPage() {
   const handleTaskClick = useCallback((issue: JiraIssue) => {
     setSelectedIssue(issue);
   }, []);
-  const handleCloseDialog = useCallback(() => {
+  const handleCloseTaskDetail = useCallback(() => {
     setSelectedIssue(null);
   }, []);
 
@@ -359,7 +359,7 @@ export default function PersonalStatisticsPage() {
 
       <TaskDetailModal
         issue={selectedIssue}
-        onClose={handleCloseDialog}
+        onClose={handleCloseTaskDetail}
         onLogWork={handleOpenLogWork}
         onRefresh={handleRefreshTask}
       />

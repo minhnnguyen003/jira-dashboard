@@ -121,6 +121,25 @@ export default function CalendarPage() {
     }
   }, [fullIssues]);
 
+  const handleCloseTaskDetail = useCallback(() => {
+    setSelectedIssue(null);
+  }, []);
+
+  const handleOpenLogWork = useCallback(() => {
+    setShowLogWorkModal(true);
+  }, []);
+
+  const handleCloseLogWork = useCallback(() => {
+    setShowLogWorkModal(false);
+  }, []);
+
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (!selectedIssue) return;
+    const refreshedIssue = await readIssueByKey(selectedIssue.key);
+    setSelectedIssue(refreshedIssue);
+    setFullIssues((previous) => ({ ...previous, [refreshedIssue.key]: refreshedIssue }));
+  }, [selectedIssue]);
+
   const monthLabel = new Intl.DateTimeFormat(language === 'vi' ? 'vi-VN' : 'en-US', {
     month: 'long',
     year: 'numeric',
@@ -177,17 +196,13 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={() => setSelectedIssue(null)} onLogWork={() => setShowLogWorkModal(true)} onRefresh={async (issue) => {
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseTaskDetail} onLogWork={handleOpenLogWork} onRefresh={async (issue) => {
         const refreshed = await readIssueByKey(issue.key);
         setSelectedIssue(refreshed);
         setFullIssues((previous) => ({ ...previous, [refreshed.key]: refreshed }));
         return refreshed;
       }} />
-      {showLogWorkModal && selectedIssue && <LogWorkModal issueKey={selectedIssue.key} issueSummary={selectedIssue.fields.summary} originalEstimate={selectedIssue.fields.timeestimate} onClose={() => setShowLogWorkModal(false)} onSuccess={async () => {
-        const refreshed = await readIssueByKey(selectedIssue.key);
-        setSelectedIssue(refreshed);
-        setFullIssues((previous) => ({ ...previous, [refreshed.key]: refreshed }));
-      }} />}
+      {showLogWorkModal && selectedIssue && <LogWorkModal issueKey={selectedIssue.key} issueSummary={selectedIssue.fields.summary} originalEstimate={selectedIssue.fields.timeestimate} onClose={handleCloseLogWork} onSuccess={handleLogWorkSuccess} />}
     </div>
   );
 }

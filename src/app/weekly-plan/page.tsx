@@ -106,6 +106,10 @@ export default function WeeklyPlanPage() {
     setShowLogWorkModal(true);
   }, []);
 
+  const handleCloseTaskDetail = useCallback(() => {
+    setSelectedIssue(null);
+  }, []);
+
   const handleCloseLogWork = useCallback(() => {
     setShowLogWorkModal(false);
   }, []);
@@ -214,7 +218,7 @@ export default function WeeklyPlanPage() {
 
       <TaskDetailModal
         issue={selectedIssue}
-        onClose={() => setSelectedIssue(null)}
+        onClose={handleCloseTaskDetail}
         onLogWork={handleOpenLogWork}
         onRefresh={async (issue) => {
           const refreshedIssue = await readIssueByKey(issue.key);

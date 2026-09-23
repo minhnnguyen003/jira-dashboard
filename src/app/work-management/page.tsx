@@ -281,7 +281,7 @@ export default function WorkManagementPage() {
     setSelectedIssue(issue);
   }, []);
 
-  const handleCloseDialog = useCallback(() => {
+  const handleCloseTaskDetail = useCallback(() => {
     setSelectedIssue(null);
   }, []);
 
@@ -532,7 +532,7 @@ export default function WorkManagementPage() {
         )}
       </div>
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseDialog} onLogWork={handleOpenLogWork} onRefresh={handleRefreshTask} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseTaskDetail} onLogWork={handleOpenLogWork} onRefresh={handleRefreshTask} />
 
       {showLogWorkModal && selectedIssue && (
           <LogWorkModal

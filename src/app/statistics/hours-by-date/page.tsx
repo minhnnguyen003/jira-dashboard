@@ -6,6 +6,7 @@ import { Bar } from 'react-chartjs-2';
 import { useLanguage } from '@/lib/i18n';
 import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
+import LogWorkModal from '@/components/modal/LogWorkModal';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
 import {
   createHoursByDateInitialState,
@@ -63,6 +64,7 @@ export default function HoursByDatePage() {
   const [fullIssues] = useState<Record<string, JiraIssue>>({});
   const [taskLoading, setTaskLoading] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
+  const [showLogWorkModal, setShowLogWorkModal] = useState(false);
 
   const handleFromDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const iso = e.target.value;
@@ -215,7 +217,7 @@ export default function HoursByDatePage() {
     setSelectedIssue(issue);
   }, []);
 
-  const handleCloseModal = useCallback(() => {
+  const handleCloseTaskDetail = useCallback(() => {
     setSelectedIssue(null);
   }, []);
 
@@ -238,6 +240,20 @@ export default function HoursByDatePage() {
     setSelectedIssue(refreshedIssue);
     return refreshedIssue;
   }, [fetchTasksForDate, selectedDate]);
+
+  const handleOpenLogWork = useCallback(() => {
+    setShowLogWorkModal(true);
+  }, []);
+
+  const handleCloseLogWork = useCallback(() => {
+    setShowLogWorkModal(false);
+  }, []);
+
+  const handleLogWorkSuccess = useCallback(async () => {
+    if (selectedIssue) {
+      await handleRefreshTask(selectedIssue);
+    }
+  }, [handleRefreshTask, selectedIssue]);
 
   const options: ChartOptions<'bar'> = useMemo(() => ({
     responsive: true,
@@ -442,7 +458,17 @@ export default function HoursByDatePage() {
         </div>
       )}
 
-      <TaskDetailModal issue={selectedIssue} onClose={handleCloseModal} onRefresh={handleRefreshTask} />
+      <TaskDetailModal issue={selectedIssue} onClose={handleCloseTaskDetail} onLogWork={handleOpenLogWork} onRefresh={handleRefreshTask} />
+
+      {showLogWorkModal && selectedIssue && (
+        <LogWorkModal
+          issueKey={selectedIssue.key}
+          issueSummary={selectedIssue.fields.summary}
+          originalEstimate={selectedIssue.fields.timeestimate}
+          onClose={handleCloseLogWork}
+          onSuccess={handleLogWorkSuccess}
+        />
+      )}
     </div>
   );
 }
