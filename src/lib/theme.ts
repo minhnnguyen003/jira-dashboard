@@ -20,11 +20,16 @@ export const THEMES = [
   { id: 'arctic', mode: 'dark', labelKey: 'theme.name.arctic', swatch: ['#161c28', '#222c40', '#88c0d0'] },
   { id: 'rose', mode: 'dark', labelKey: 'theme.name.rose', swatch: ['#150a12', '#2c1523', '#ff8ac6'] },
   { id: 'amoled', mode: 'dark', labelKey: 'theme.name.amoled', swatch: ['#000000', '#121216', '#c6f24e'] },
+  { id: 'ember', mode: 'dark', labelKey: 'theme.name.ember', swatch: ['#170d08', '#3e2216', '#ffa65c'] },
+  { id: 'mocha', mode: 'dark', labelKey: 'theme.name.mocha', swatch: ['#17120f', '#342a23', '#e0b98a'] },
   { id: 'light', mode: 'light', labelKey: 'theme.name.light', swatch: ['#f8f8fc', '#ffffff', '#635de8'] },
   { id: 'sky', mode: 'light', labelKey: 'theme.name.sky', swatch: ['#f1f6fc', '#ffffff', '#1d6fd6'] },
   { id: 'sand', mode: 'light', labelKey: 'theme.name.sand', swatch: ['#f8f3ea', '#fffcf6', '#0b7a85'] },
   { id: 'blush', mode: 'light', labelKey: 'theme.name.blush', swatch: ['#fdf3f7', '#ffffff', '#a8328f'] },
   { id: 'slate', mode: 'light', labelKey: 'theme.name.slate', swatch: ['#eceff3', '#ffffff', '#3b4a63'] },
+  { id: 'mint', mode: 'light', labelKey: 'theme.name.mint', swatch: ['#eff9f4', '#ffffff', '#0c8a5f'] },
+  { id: 'lavender', mode: 'light', labelKey: 'theme.name.lavender', swatch: ['#f5f2fc', '#ffffff', '#6d46d1'] },
+  { id: 'peach', mode: 'light', labelKey: 'theme.name.peach', swatch: ['#fdf4ee', '#ffffff', '#c4501b'] },
 ] as const satisfies readonly ThemeDefinition[];
 
 export type ThemeId = (typeof THEMES)[number]['id'];
