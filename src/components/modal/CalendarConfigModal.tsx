@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
+import { MODAL_COLORS } from '@/lib/palette';
+import { useIsLightTheme } from '@/lib/theme';
 
 type CalendarType = 'holiday' | 'additional';
 type CalendarEntry = { date: string; name: string };
@@ -109,6 +111,7 @@ function CalendarSection({
 
 export default function CalendarConfigModal({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage();
+  const isLight = useIsLightTheme();
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,13 +138,12 @@ export default function CalendarConfigModal({ onClose }: { onClose: () => void }
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }} style={{ background: MODAL_COLORS.backdropBlur, backdropFilter: 'blur(8px)' }}>
       <div
         role="dialog"
         aria-modal="true"
-        className="glass-card flex min-w-0 flex-col gap-4 overflow-y-auto rounded-2xl p-4 sm:p-5"
-        style={{ width: '80vw', height: '90vh', background: 'var(--surface)', border: '1px solid var(--border)' }}
-        onClick={(event) => event.stopPropagation()}
+        className="flex min-w-0 flex-col gap-4 overflow-y-auto rounded-2xl p-4 sm:p-5"
+        style={{ width: '80vw', height: '90vh', background: MODAL_COLORS.cardBg, WebkitBackdropFilter: 'blur(32px) saturate(1.6)', backdropFilter: 'blur(32px) saturate(1.6)', border: `1px solid ${MODAL_COLORS.border}`, boxShadow: isLight ? '0 16px 64px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.85)' : '0 16px 64px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)' }}
       >
       <div className="flex items-start justify-between gap-3">
         <div><h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{t('calendarConfig.title')}</h1><p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>{t('calendarConfig.subtitle')}</p></div>
