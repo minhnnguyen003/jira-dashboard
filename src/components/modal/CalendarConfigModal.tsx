@@ -107,10 +107,18 @@ function CalendarSection({
   );
 }
 
-export default function CalendarConfigPage() {
+export default function CalendarConfigModal({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage();
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     const load = async () => {
@@ -127,11 +135,22 @@ export default function CalendarConfigPage() {
   }, []);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4" style={{ minHeight: 'calc(100vh - 56px)' }}>
-      <div><h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{t('calendarConfig.title')}</h1><p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>{t('calendarConfig.subtitle')}</p></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="glass-card flex min-w-0 flex-col gap-4 overflow-y-auto rounded-2xl p-4 sm:p-5"
+        style={{ width: '80vw', height: '90vh', background: 'var(--surface)', border: '1px solid var(--border)' }}
+        onClick={(event) => event.stopPropagation()}
+      >
+      <div className="flex items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{t('calendarConfig.title')}</h1><p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>{t('calendarConfig.subtitle')}</p></div>
+        <button type="button" className="page-btn px-3 py-1.5 text-sm" aria-label={t('calendarConfig.cancel')} onClick={onClose}>✕</button>
+      </div>
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>{error}</div>}
       {!data && !error && <div className="flex flex-1 items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>{t('calendarConfig.loading')}</div>}
       {data && <div className="grid gap-4 xl:grid-cols-2"><CalendarSection type="holiday" title={t('calendarConfig.holidayTitle')} entries={data.holidays} onChanged={(holidays) => setData((previous) => previous ? { ...previous, holidays } : previous)} /><CalendarSection type="additional" title={t('calendarConfig.additionalTitle')} entries={data.additionalDays} onChanged={(additionalDays) => setData((previous) => previous ? { ...previous, additionalDays } : previous)} /></div>}
+      </div>
     </div>
   );
 }

@@ -15,8 +15,10 @@ function toIsoDate(date) {
 }
 
 export function isWorkingDate(isoDate, holidayDates, additionalDates) {
+  // Ngày vừa là ngày nghỉ vừa là ngày làm bù thì tính là ngày nghỉ.
+  if (holidayDates.has(isoDate)) return false;
   const date = new Date(`${isoDate}T00:00:00.000Z`);
-  return (isWeekday(date) && !holidayDates.has(isoDate)) || additionalDates.has(isoDate);
+  return isWeekday(date) || additionalDates.has(isoDate);
 }
 
 export function calculateWorkingDays(year, month, holidayDates, additionalDates) {

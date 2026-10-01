@@ -283,7 +283,7 @@ const translations = {
     'nav.customJql': 'Run JQL Query',
     'nav.weeklyPlan': 'Weekly Kanban Board',
     'nav.calendar': 'Work Calendar',
-    'nav.calendarConfig': 'Working Calendar',
+    'nav.calendarConfig': 'Working Day Configuration',
     'nav.browseTasks': 'Browse Tasks',
     'nav.statistics': 'Statistics',
     'nav.statisticsOverview': 'Overview Statistics',
