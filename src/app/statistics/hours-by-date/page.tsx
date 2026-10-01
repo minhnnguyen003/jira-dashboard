@@ -412,13 +412,7 @@ export default function HoursByDatePage() {
             <button
               type="button"
               onClick={() => setSelectedDate(null)}
-              className="text-xs px-3 py-1 rounded-lg"
-              style={{
-                color: 'var(--text-muted)',
-                background: 'var(--surface-light)',
-                border: '1px solid var(--border)',
-                cursor: 'pointer',
-              }}
+              className="btn btn-ghost px-3 py-1 text-xs"
             >
               x
             </button>

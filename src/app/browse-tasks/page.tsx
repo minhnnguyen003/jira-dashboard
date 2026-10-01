@@ -318,32 +318,14 @@ function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, us
           <button
             type="button"
             onClick={() => setFilters(EMPTY_FILTERS)}
-            className="text-sm"
-            style={{
-              padding: '6px 16px',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              color: 'var(--text-dim)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-hover)';
-              e.currentTarget.style.color = 'var(--text)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.color = 'var(--text-dim)';
-            }}
+            className="btn btn-ghost px-4 py-1.5 text-sm"
           >
             {t('browseTasks.reset')}
           </button>
           <button
             type="button"
             onClick={() => onSubmit(filters)}
-            className="btn-primary text-sm"
-            style={{ fontSize: '12px', padding: '6px 16px' }}
+            className="btn-primary px-4 py-1.5 text-sm"
           >
             {t('browseTasks.submit')}
           </button>
@@ -532,8 +514,7 @@ export default function BrowseTasksPage() {
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="btn-primary text-sm"
-          style={{ padding: '6px 14px', borderRadius: '12px' }}
+          className="btn-primary px-3.5 py-1.5 text-sm"
         >
           + {t('browseTasks.createTask')}
         </button>
@@ -542,22 +523,7 @@ export default function BrowseTasksPage() {
           onClick={() => setShowFilterPanel((v) => !v)}
           aria-expanded={showFilterPanel}
           aria-controls="browse-tasks-filter-panel"
-          className="flex items-center gap-2 text-sm"
-          style={{
-            padding: '6px 14px',
-            background: activeFilterCount > 0 ? 'var(--accent-bg)' : 'transparent',
-            border: `1px solid ${activeFilterCount > 0 ? 'var(--accent-border)' : 'var(--border)'}`,
-            borderRadius: '12px',
-            color: activeFilterCount > 0 ? 'var(--accent)' : 'var(--text-dim)',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-hover)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = activeFilterCount > 0 ? 'var(--accent-border)' : 'var(--border)';
-          }}
+          className={`btn btn-ghost px-3.5 py-1.5 text-sm${activeFilterCount > 0 ? ' is-active' : ''}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -566,7 +532,7 @@ export default function BrowseTasksPage() {
           {activeFilterCount > 0 && (
             <span
               className="flex items-center justify-center text-[10px] font-bold rounded-full"
-              style={{ minWidth: '16px', height: '16px', background: 'var(--accent)', color: 'var(--bg)' }}
+              style={{ minWidth: '16px', height: '16px', background: 'var(--accent)', color: 'var(--on-accent)' }}
             >
               {activeFilterCount}
             </span>

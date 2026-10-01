@@ -216,10 +216,7 @@ export default function Sidebar() {
               <ThemePicker />
               <button
                 onClick={toggleLanguage}
-                className="px-2 py-1 rounded-lg transition-all duration-200 text-[10px] font-semibold"
-                style={{ color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--border)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                className="btn btn-ghost px-2 py-1 text-[10px] font-semibold"
                 title={t('language.switchTo', { language: language === 'vi' ? t('language.en') : t('language.vi') })}
               >
                 {language === 'vi' ? 'EN' : 'VI'}
@@ -228,10 +225,7 @@ export default function Sidebar() {
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg transition-all duration-200"
-            style={{ color: 'var(--text-dim)' }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-bg)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            className="btn btn-bare btn-icon"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={effectiveCollapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
@@ -254,7 +248,7 @@ export default function Sidebar() {
                     href={item.href || '#'}
                     className={`flex items-center py-2 rounded-xl transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}
                     style={{
-                      color: active ? 'var(--bg)' : 'var(--text-dim)',
+                      color: active ? 'var(--on-accent)' : 'var(--text-dim)',
                       background: active ? 'var(--accent)' : 'transparent',
                       fontWeight: active ? 600 : 400,
                       boxShadow: active ? '0 2px 8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none',
@@ -279,7 +273,7 @@ export default function Sidebar() {
                   onClick={() => !effectiveCollapsed && toggleExpand(item.label)}
                   className={`w-full flex items-center py-2 rounded-xl transition-all duration-200 ${effectiveCollapsed ? 'justify-center px-0' : 'gap-3 px-3'}`}
                   style={{
-                    color: active ? 'var(--bg)' : 'var(--text-dim)',
+                    color: active ? 'var(--on-accent)' : 'var(--text-dim)',
                     background: active ? 'var(--accent)' : 'transparent',
                     fontWeight: active ? 600 : 400,
                     boxShadow: active ? '0 2px 8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none',

@@ -760,20 +760,13 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 </div>
                 <button
                   onClick={() => { void handleSave(); }}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg"
-                  style={{
-                    color: 'var(--success)',
-                    background: 'var(--success-bg)',
-                    border: '1px solid var(--success-border)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-success px-3 py-1.5 text-xs"
                 >
                   Save
                 </button>
                 <button
                   onClick={cancelEditing}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg"
-                  style={{ color: c.textMuted, background: 'var(--chip-bg)', border: '1px solid var(--chip-border)' }}
+                  className="btn btn-secondary px-3 py-1.5 text-xs"
                 >
                   Cancel
                 </button>
@@ -781,8 +774,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
             )}
             <button
               onClick={() => onLogWork?.()}
-              className="text-xs font-medium hover:underline px-3 py-1.5 rounded-lg"
-              style={{ color: c.accent, background: c.accentBg, border: `1px solid ${c.accentBorder}` }}
+              className="btn btn-tonal px-3 py-1.5 text-xs"
             >
               {t('logWork.title')}
             </button>
@@ -790,21 +782,14 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               href={issueUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium hover:underline px-3 py-1.5 rounded-lg"
-              style={{ color: c.accent, background: c.accentBg, border: `1px solid ${c.accentBorder}` }}
+              className="btn btn-tonal px-3 py-1.5 text-xs"
             >
               {t('dialog.link')}
             </a>
             <button
               onClick={requestClose}
               disabled={!canClose}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-              style={{
-                color: c.textMuted,
-                background: 'var(--chip-bg)',
-                cursor: canClose ? 'pointer' : 'not-allowed',
-                opacity: canClose ? 1 : 0.5,
-              }}
+              className="btn btn-secondary btn-icon text-sm"
               title={t('dialog.close')}
             >
               ✕
@@ -1255,13 +1240,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <button
                 onClick={clearTransitionSelection}
                 disabled={!canClose}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-                style={{
-                  color: c.textMuted,
-                  background: 'var(--chip-bg)',
-                  cursor: canClose ? 'pointer' : 'not-allowed',
-                  opacity: canClose ? 1 : 0.5,
-                }}
+                className="btn btn-secondary btn-icon text-sm"
               >
                 ✕
               </button>
@@ -1397,27 +1376,14 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <button
                 onClick={clearTransitionSelection}
                 disabled={!canClose}
-                className="px-4 py-2 text-sm rounded-xl"
-                style={{
-                  color: c.textMuted,
-                  background: 'var(--chip-bg)',
-                  border: '1px solid var(--chip-border)',
-                  cursor: canClose ? 'pointer' : 'not-allowed',
-                  opacity: canClose ? 1 : 0.5,
-                }}
+                className="btn btn-secondary px-4 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleTransitionSubmit}
                 disabled={transitioning}
-                className="px-6 py-2 text-sm rounded-xl font-medium"
-                style={{
-                  color: 'var(--success)',
-                  background: 'var(--success-bg)',
-                  border: '1px solid var(--success-border)',
-                  cursor: transitioning ? 'not-allowed' : 'pointer',
-                }}
+                className="btn btn-success px-6 py-2 text-sm"
               >
                 {transitioning ? t('dialog.transitioning') : 'Confirm'}
               </button>

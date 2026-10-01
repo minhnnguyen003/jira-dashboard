@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Jira Dashboard",
   description: "Jira JQL Dashboard with Charts and Tables",
+  icons: {
+    icon: "/atlassian_jira_logo_icon_170511.svg",
+  },
 };
 
 export default function RootLayout({

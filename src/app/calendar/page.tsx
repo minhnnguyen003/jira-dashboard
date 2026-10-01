@@ -154,10 +154,10 @@ export default function CalendarPage() {
           <p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>Task hiển thị theo dải từ ngày bắt đầu đến hạn hoàn thành.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/calendar-config" className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>{t('nav.calendarConfig')}</Link>
-          <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>←</button>
-          <button type="button" onClick={() => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); }} className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>Hôm nay</button>
-          <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>→</button>
+          <Link href="/calendar-config" className="btn btn-secondary px-3 py-2 text-sm">{t('nav.calendarConfig')}</Link>
+          <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} className="btn btn-secondary px-3 py-2 text-sm">←</button>
+          <button type="button" onClick={() => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); }} className="btn btn-secondary px-3 py-2 text-sm">Hôm nay</button>
+          <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} className="btn btn-secondary px-3 py-2 text-sm">→</button>
         </div>
       </div>
 
@@ -182,7 +182,7 @@ export default function CalendarPage() {
                   {weekDays.map((day) => {
                     const isCurrentMonth = day.getMonth() === month.getMonth();
                     const isToday = day.toDateString() === new Date().toDateString();
-                    return <div key={day.toISOString()} className="border-r p-2 last:border-r-0" style={{ borderColor: 'var(--border)', background: isCurrentMonth ? 'transparent' : 'var(--surface-light)' }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium" style={{ color: isToday ? 'var(--bg)' : isCurrentMonth ? 'var(--text)' : 'var(--text-muted)', background: isToday ? 'var(--accent)' : 'transparent' }}>{day.getDate()}</span></div>;
+                    return <div key={day.toISOString()} className="border-r p-2 last:border-r-0" style={{ borderColor: 'var(--border)', background: isCurrentMonth ? 'transparent' : 'var(--surface-light)' }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium" style={{ color: isToday ? 'var(--on-accent)' : isCurrentMonth ? 'var(--text)' : 'var(--text-muted)', background: isToday ? 'var(--accent)' : 'transparent' }}>{day.getDate()}</span></div>;
                   })}
                   <div className="pointer-events-none absolute inset-x-0 top-9 grid grid-cols-7 gap-y-1 px-1">
                     {segments.map((segment) => (

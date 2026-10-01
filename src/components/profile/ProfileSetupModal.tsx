@@ -217,7 +217,7 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
             type="button"
             onClick={handleConfirm}
             disabled={!canSubmit}
-            className="btn-primary px-5 py-2.5 text-sm disabled:opacity-40"
+            className="btn-primary px-5 py-2.5 text-sm"
           >
             Xác nhận
           </button>

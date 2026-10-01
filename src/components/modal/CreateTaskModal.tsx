@@ -4,9 +4,10 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { useIsLightTheme } from '@/lib/theme';
 import { MODAL_COLORS } from '@/lib/palette';
+import { readProfileFromDocumentCookie } from '@/lib/profile-cookie.js';
 
 interface Project { key: string; name: string; }
-interface User { name: string; displayName: string; }
+interface User { name: string; displayName: string; email?: string; }
 interface Epic { key: string; summary: string; }
 interface TaskOption { key: string; summary: string; status: string; }
 interface Sprint { id: number; name: string; state: string; }
@@ -51,6 +52,21 @@ function createInitialFormState(now = new Date()): TaskForm {
     originalEstimate: '1d', remainingEstimate: '1d',
     startDate: `${todayStr}T08:00`, dueDate: `${todayStr}T17:00`,
   };
+}
+
+async function resolveSelfUsername(signal?: AbortSignal): Promise<string | null> {
+  const profile = readProfileFromDocumentCookie();
+  if (!profile?.displayName) return null;
+  const query = profile.email || profile.displayName;
+  const res = await fetch(`/api/jira/users?query=${encodeURIComponent(query)}`, { signal });
+  if (!res.ok) return null;
+  const data: User[] = await res.json();
+  const lower = (v?: string) => (v || '').toLowerCase();
+  const match =
+    data.find((u) => profile.email && lower(u.email) === lower(profile.email)) ||
+    data.find((u) => profile.email && lower(u.name) === lower(profile.email)) ||
+    data.find((u) => lower(u.displayName) === lower(profile.displayName));
+  return match?.name ?? null;
 }
 
 function isAbortError(error: unknown) {
@@ -113,6 +129,36 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
     fetch('/api/jira/projects')
       .then((r) => r.json()).then(setProjects).catch(() => {})
       .finally(() => setProjectLoading(false));
+  }, []);
+
+  const [selfAssigning, setSelfAssigning] = useState(false);
+
+  const handleSelfAssign = async () => {
+    setSelfAssigning(true);
+    try {
+      const username = await resolveSelfUsername();
+      if (username) {
+        setForm((prev) => ({ ...prev, assignee: username }));
+        setShowUserDropdown(false);
+      }
+    } catch {
+      // ignore: user can still pick an assignee manually
+    } finally {
+      setSelfAssigning(false);
+    }
+  };
+
+  // Default the assignee to the logged-in user
+  useEffect(() => {
+    const controller = new AbortController();
+    resolveSelfUsername(controller.signal)
+      .then((username) => {
+        if (username && !controller.signal.aborted) {
+          setForm((prev) => (prev.assignee ? prev : { ...prev, assignee: username }));
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -307,7 +353,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: c.borderRow, background: c.cardBg }}>
           <h2 className="text-base font-bold" style={{ color: c.textPrimary }}>{t('createTask.create')}</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-sm" style={{ color: c.textMuted, background: 'var(--chip-bg)', cursor: 'pointer' }} title="Đóng (Esc)">✕</button>
+          <button onClick={onClose} className="btn btn-secondary btn-icon text-sm" title="Đóng (Esc)">✕</button>
         </div>
 
         {/* Scrollable body */}
@@ -449,7 +495,13 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
             <div className="grid grid-cols-3 gap-4">
               {/* Assignee */}
               <div ref={userRef} style={{ position: 'relative' }}>
-                <FieldLabel label={t('createTask.assigneeLabel')} c={c} />
+                <div className="flex items-center justify-between">
+                  <FieldLabel label={t('createTask.assigneeLabel')} c={c} />
+                  <button type="button" onClick={handleSelfAssign} disabled={selfAssigning}
+                    className="text-[11px] font-medium mb-1.5"
+                    style={{ color: 'var(--accent)', cursor: selfAssigning ? 'default' : 'pointer', opacity: selfAssigning ? 0.6 : 1 }}
+                  >{t('createTask.selfAssign')}</button>
+                </div>
                 <div style={{ position: 'relative' }}>
                   <input type="text" value={form.assignee}
                     onChange={(e) => {
@@ -629,11 +681,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0" style={{ borderColor: c.borderRow }}>
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl"
-              style={{ color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--border)', cursor: 'pointer' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
+            <button type="button" onClick={onClose} className="btn btn-ghost px-4 py-2 text-sm">
               {language === 'vi' ? 'Hủy' : 'Cancel'}
             </button>
             <button type="submit" disabled={loading} className="btn-primary px-6 py-2 text-sm">

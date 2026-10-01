@@ -139,10 +139,8 @@ export default function UserBar({ collapsed, onLogout }: UserBarProps) {
               setMenuOpen(false);
               onLogout();
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-all duration-200"
-            style={{ color: 'var(--text-dim)', background: 'transparent', cursor: 'pointer' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            className="btn btn-bare w-full justify-start gap-2.5 px-3 py-2 text-sm"
+            style={{ borderRadius: 0 }}
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

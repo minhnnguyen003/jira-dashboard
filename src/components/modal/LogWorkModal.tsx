@@ -152,8 +152,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-            style={{ color: c.textMuted, background: 'var(--chip-bg)' }}
+            className="btn btn-secondary btn-icon text-sm"
           >
             ✕
           </button>
@@ -286,28 +285,14 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
           <button
             onClick={onClose}
             disabled={saving}
-            className="text-sm font-medium px-4 py-2 rounded-xl"
-            style={{
-              color: c.textMuted,
-              background: 'var(--chip-bg)',
-              border: `1px solid ${c.border}`,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.5 : 1,
-            }}
+            className="btn btn-secondary px-4 py-2 text-sm"
           >
             {t('logWork.cancel')}
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="text-sm font-medium px-4 py-2 rounded-xl"
-            style={{
-              color: 'var(--on-accent)',
-              background: c.accent,
-              border: `1px solid ${c.accent}`,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-            }}
+            className="btn-primary px-4 py-2 text-sm"
           >
             {saving ? '...' : t('logWork.log')}
           </button>

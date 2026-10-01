@@ -36,10 +36,7 @@ export default function ThemePicker() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="p-1.5 rounded-lg transition-all duration-200"
-        style={{ color: 'var(--text-dim)', background: open ? 'var(--accent-bg)' : 'transparent' }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = open ? 'var(--accent-bg)' : 'transparent'; }}
+        className={`btn btn-bare btn-icon${open ? ' is-active' : ''}`}
         title={t('theme.choose')}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -52,46 +49,47 @@ export default function ThemePicker() {
         <div
           role="listbox"
           aria-label={t('theme.choose')}
-          className="absolute left-0 mt-2 w-56 rounded-xl p-1.5 z-50"
+          className="absolute left-0 mt-2 w-56 rounded-xl p-1.5 z-50 overflow-y-auto"
           style={{
             background: 'var(--dropdown-bg)',
             border: '1px solid var(--border-hover)',
             boxShadow: 'var(--glass-shadow-hover)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
+            maxHeight: 'min(70vh, 480px)',
           }}
         >
-          {THEMES.map((theme) => {
-            const selected = theme.id === themeId;
-            return (
-              <button
-                key={theme.id}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => { setTheme(theme.id); setOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left text-xs transition-colors"
-                style={{
-                  color: selected ? 'var(--accent)' : 'var(--text-secondary)',
-                  background: selected ? 'var(--accent-bg)' : 'transparent',
-                }}
-                onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
-              >
-                <span
-                  className="flex shrink-0 overflow-hidden rounded-md"
-                  style={{ width: 36, height: 22, border: '1px solid var(--border-hover)' }}
-                  aria-hidden
-                >
-                  <span style={{ flex: 1, background: theme.swatch[0] }} />
-                  <span style={{ flex: 1, background: theme.swatch[1] }} />
-                  <span style={{ flex: 1, background: theme.swatch[2] }} />
-                </span>
-                <span className="flex-1 font-medium">{t(theme.labelKey)}</span>
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t(theme.mode === 'dark' ? 'theme.mode.dark' : 'theme.mode.light')}</span>
-              </button>
-            );
-          })}
+          {(['dark', 'light'] as const).map((mode) => (
+            <div key={mode} role="group" aria-label={t(mode === 'dark' ? 'theme.mode.dark' : 'theme.mode.light')}>
+              <div className="px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                {t(mode === 'dark' ? 'theme.mode.dark' : 'theme.mode.light')}
+              </div>
+              {THEMES.filter((theme) => theme.mode === mode).map((theme) => {
+                const selected = theme.id === themeId;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => { setTheme(theme.id); setOpen(false); }}
+                    className={`btn btn-bare w-full justify-start gap-2.5 px-2 py-1.5 text-xs${selected ? ' is-active' : ''}`}
+                  >
+                    <span
+                      className="flex shrink-0 overflow-hidden rounded-md"
+                      style={{ width: 36, height: 22, border: '1px solid var(--border-hover)' }}
+                      aria-hidden
+                    >
+                      <span style={{ flex: 1, background: theme.swatch[0] }} />
+                      <span style={{ flex: 1, background: theme.swatch[1] }} />
+                      <span style={{ flex: 1, background: theme.swatch[2] }} />
+                    </span>
+                    <span className="flex-1 text-left">{t(theme.labelKey)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
     </div>
