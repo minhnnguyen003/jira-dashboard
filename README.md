@@ -7,7 +7,7 @@ Choose your language / Chọn ngôn ngữ:
 [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-minhnn03%2Fjira--dashboard-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/minhnn03/jira-dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > A modern Jira work monitoring dashboard built with Next.js, TypeScript, and Chart.js.
@@ -36,7 +36,6 @@ For new users, this is the fastest way to get the app running locally.
    ```env
    JIRA_BASE_URL=https://your-domain.atlassian.net
    JIRA_BEARER_TOKEN=your-bearer-token-here
-   NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
    ```
 4. Start the development server
    ```bash
@@ -66,38 +65,71 @@ JIRA_BEARER_TOKEN=your-bearer-token-here
 JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your-api-token-here
 
-# Public URL for issue links
-NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
 ```
 
 ## 🐳 Docker
 
-The Dockerfile uses a multi-stage build with 4 stages: `base` → `deps` → `builder` → `runner`.
-It supports 3 environment modes through `--build-arg ENV_ENV`:
+The Dockerfile uses a multi-stage build. No env file is baked into the image: pass env when running the container.
 
-| Mode | Env file | Purpose |
-|---|---|---|
-| `local` | `.env.local` | Build with the env file embedded in the image |
-| `prod` | `.env.prod` | Build with the prod env file embedded |
-| `runtime` | none | Pass env through `-e` or `docker-compose` |
+### Run from Docker Hub
+
+Image: [minhnn03/jira-dashboard](https://hub.docker.com/r/minhnn03/jira-dashboard) (tags: `latest`, `1.15.11`)
+
+1. Create an env file (no env is baked into the image)
+   ```bash
+   curl -o .env https://raw.githubusercontent.com/minhnnguyen003/jira-dashboard/main/.env.example
+   ```
+   Then edit it. Required: `JIRA_BASE_URL` and either `JIRA_BEARER_TOKEN` or `JIRA_EMAIL` + `JIRA_API_TOKEN`.
+2. Pull and run
+   ```bash
+   docker pull minhnn03/jira-dashboard:latest
+   docker run -d --name jira-dashboard -p 3000:3000 --env-file .env --restart unless-stopped minhnn03/jira-dashboard:latest
+   ```
+3. Open http://localhost:3000
+
+Pin a specific version for production: `minhnn03/jira-dashboard:1.15.11`.
+
+Using Docker Compose (save as `docker-compose.yml` next to your `.env`):
+
+```yaml
+services:
+  jira-dashboard:
+    image: minhnn03/jira-dashboard:latest
+    ports:
+      - "3000:3000"
+    env_file: .env
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
+Update to a newer image:
+
+```bash
+docker compose pull && docker compose up -d
+# or with plain docker
+docker pull minhnn03/jira-dashboard:latest && docker rm -f jira-dashboard && docker run -d --name jira-dashboard -p 3000:3000 --env-file .env --restart unless-stopped minhnn03/jira-dashboard:latest
+```
 
 ### Build image
 
 ```bash
-# Build with local env
-docker build --build-arg ENV_ENV=local -t jira-dashboard:local .
+docker build -t jira-dashboard .
+```
 
-# Build with prod env
-docker build --build-arg ENV_ENV=prod -t jira-dashboard:prod .
+### Run with docker
 
-# Build without embedding env
-docker build --build-arg ENV_ENV=runtime -t jira-dashboard:runtime .
+```bash
+docker run -d -p 3000:3000 --env-file .env.prod jira-dashboard
 ```
 
 ### Docker Compose
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build                        # uses .env.local
+ENV_FILE=.env.prod HOST_PORT=3001 docker compose up -d
 ```
 
 ## 📁 Project structure

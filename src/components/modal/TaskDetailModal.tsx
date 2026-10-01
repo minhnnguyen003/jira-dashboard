@@ -2,6 +2,7 @@
 
 import { JiraIssue, JiraTransition, JiraTransitionField, JiraEditMeta } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
+import { useRuntimeConfig } from '@/lib/runtimeConfig';
 import { buildTransitionFields, normalizeRemainingEstimateValue } from '@/lib/jira/transitionPayload';
 import {
   canCloseTaskDetail,
@@ -278,6 +279,7 @@ export default function TaskDetailModal(props: TaskDetailModalProps) {
 
 function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDetailModalProps & { issue: JiraIssue }) {
   const { t, language } = useLanguage();
+  const baseUrl = useRuntimeConfig().jiraBaseUrl;
   const isLight = useIsLightTheme();
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -666,7 +668,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   if (!currentIssue) return null;
   const f = currentIssue.fields;
 
-  const baseUrl = process.env.NEXT_PUBLIC_JIRA_BASE_URL || 'https://your-domain.atlassian.net';
   const issueUrl = `${baseUrl}/browse/${currentIssue.key}`;
 
   const getAssigneeName = (user: { displayName: string; name: string } | null) => {

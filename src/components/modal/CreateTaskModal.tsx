@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n';
+import { useRuntimeConfig } from '@/lib/runtimeConfig';
 import { useIsLightTheme } from '@/lib/theme';
 import { MODAL_COLORS } from '@/lib/palette';
 import { readProfileFromDocumentCookie } from '@/lib/profile-cookie.js';
@@ -34,7 +35,6 @@ interface CreateTaskModalProps {
 
 const issueTypeOptions = ['Task', 'Story', 'Sub-task', 'Bug', 'Epic'] as const;
 const priorityOptions = ['Highest', 'High', 'Medium', 'Low', 'Lowest'] as const;
-const jiraBaseUrl = (process.env.NEXT_PUBLIC_JIRA_BASE_URL || '').replace(/\/+$/, '');
 
 function FieldLabel({ label, c }: { label: string; c: typeof MODAL_COLORS }) {
   return (
@@ -75,6 +75,7 @@ function isAbortError(error: unknown) {
 
 export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
   const { t, language } = useLanguage();
+  const { jiraBaseUrl } = useRuntimeConfig();
   const isLight = useIsLightTheme();
 
   const c = MODAL_COLORS;

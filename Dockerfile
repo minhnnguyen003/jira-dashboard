@@ -1,9 +1,6 @@
-# Use --build-arg ENV_ENV=local|prod|runtime to select build-time env input.
-# `local` and `prod` load the matching env file during `next build` so
-# `NEXT_PUBLIC_*` values can be baked into the standalone bundle.
-# `runtime` skips copying env files and expects values from `docker run` /
-# `docker compose`.
-ARG ENV_ENV=runtime
+# The image contains no env files. Pass them at run time:
+#   docker run --env-file .env.prod -p 3000:3000 jira-dashboard
+#   ENV_FILE=.env.prod docker compose up -d
 
 # Stage 1: Dependencies
 FROM node:22-alpine AS deps
@@ -20,22 +17,9 @@ RUN npm ci
 FROM node:22-alpine AS builder
 
 WORKDIR /app
-ARG ENV_ENV=runtime
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-RUN case "${ENV_ENV}" in \
-      local|prod|runtime) ;; \
-      *) echo "ERROR: ENV_ENV must be 'local', 'prod', or 'runtime'" >&2; exit 1 ;; \
-    esac
-
-# Copy the selected env file for build-time NEXT_ vars
-RUN if [ "${ENV_ENV}" = "local" ]; then \
-      cp .env.local .env ; \
-    elif [ "${ENV_ENV}" = "prod" ]; then \
-      cp .env.prod .env ; \
-    fi
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -45,9 +29,8 @@ RUN npm run build
 FROM node:22-alpine AS runner
 
 WORKDIR /app
-ARG ENV_ENV=runtime
 
-ENV NODE_ENV=production
+ENV NODE_ENV=local
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV TZ=Asia/Ho_Chi_Minh
 
