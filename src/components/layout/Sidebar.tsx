@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n';
-import CreateTaskModal from '@/components/modal/CreateTaskModal';
 import UserBar from '@/components/layout/UserBar';
 import LogoutOverlay from '@/components/layout/LogoutOverlay';
 import ThemePicker from '@/components/layout/ThemePicker';
@@ -25,13 +24,8 @@ interface MenuItem {
 
 const menuLabelKeys: Record<string, Parameters<ReturnType<typeof useLanguage>['t']>[0]> = {
   'Chạy query JQL': 'nav.customJql',
-  'Quản lý Task': 'nav.taskManagement',
-  'Tạo Task': 'nav.createTask',
-  'Tạo Task hàng loạt': 'nav.createTaskBulk',
-  'Quản lý công việc': 'nav.workManagement',
   'Bảng Kanban Tuần': 'nav.weeklyPlan',
   'Lịch công việc': 'nav.calendar',
-  'Cấu hình lịch làm việc': 'nav.calendarConfig',
   'Duyệt Task': 'nav.browseTasks',
   'Thống kê': 'nav.statistics',
   'Thống kê tổng hợp': 'nav.statisticsOverview',
@@ -59,15 +53,6 @@ const menuItems: MenuItem[] = [
     label: 'Lịch công việc',
   },
   {
-    href: '/calendar-config',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z" />
-      </svg>
-    ),
-    label: 'Cấu hình lịch làm việc',
-  },
-  {
     href: '/custom-jql',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,45 +60,6 @@ const menuItems: MenuItem[] = [
       </svg>
     ),
     label: 'Chạy query JQL',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>
-    ),
-    label: 'Quản lý Task',
-    subItems: [
-      {
-        href: '/create-task',
-        label: 'Tạo Task',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        ),
-      },
-      {
-        href: '/create-task-bulk',
-        label: 'Tạo Task hàng loạt',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        ),
-        disabled: true,
-      },
-      {
-        href: '/work-management',
-        label: 'Quản lý công việc',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        ),
-      },
-
-    ],
   },
   {
     icon: (
@@ -177,7 +123,6 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => getActiveMenuLabels(pathname));
   const [expandedPathname, setExpandedPathname] = useState(pathname);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
   const effectiveCollapsed = collapsed || isNarrowViewport;
@@ -223,7 +168,6 @@ export default function Sidebar() {
 
   return (
     <>
-    {showCreateModal && <CreateTaskModal onClose={() => setShowCreateModal(false)} />}
     {loggingOut && <LogoutOverlay />}
     <aside
       className="app-sidebar flex flex-col fixed top-0 left-0 h-screen z-50 transition-all duration-200"
@@ -367,28 +311,6 @@ export default function Sidebar() {
                   <div className="mt-1.5 ml-5 space-y-0.5">
                     {item.subItems.map((sub) => {
                       const subActive = pathname === sub.href;
-                      if (sub.label === 'Tạo Task') {
-                        return (
-                          <button
-                            key={sub.href}
-                            type="button"
-                            onClick={() => setShowCreateModal(true)}
-                            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200"
-                            style={{
-                              color: 'var(--text-dim)',
-                              background: 'transparent',
-                              fontWeight: 400,
-                              fontSize: '13px',
-                              cursor: 'pointer',
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                          >
-                            <span className="flex-shrink-0">{sub.icon}</span>
-                            <span>{t(menuLabelKeys[sub.label])}</span>
-                          </button>
-                        );
-                      }
                       return (
                         <Link
                           key={sub.href}

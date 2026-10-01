@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
 import { useLanguage } from '@/lib/i18n';
@@ -153,6 +154,7 @@ export default function CalendarPage() {
           <p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>Task hiển thị theo dải từ ngày bắt đầu đến hạn hoàn thành.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/calendar-config" className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>{t('nav.calendarConfig')}</Link>
           <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>←</button>
           <button type="button" onClick={() => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); }} className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>Hôm nay</button>
           <button type="button" onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}>→</button>

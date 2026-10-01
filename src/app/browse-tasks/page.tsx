@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
+import CreateTaskModal from '@/components/modal/CreateTaskModal';
 import AssigneeCombobox from '@/components/form/AssigneeCombobox';
 import { consumeBrowseUsers, loadBrowseUsers } from './browseUsersLoader.js';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
@@ -369,6 +370,7 @@ export default function BrowseTasksPage() {
   const [fullIssues, setFullIssues] = useState<Record<string, JiraIssue>>({});
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
   const [showLogWorkModal, setShowLogWorkModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -526,6 +528,15 @@ export default function BrowseTasksPage() {
           {t('browseTasks.title')}
           <span className="text-sm font-normal ml-2" style={{ color: 'var(--text-muted)' }}>({tasks.length}/{total} {t('browseTasks.results')})</span>
         </h2>
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="btn-primary text-sm"
+          style={{ padding: '6px 14px', borderRadius: '12px' }}
+        >
+          + {t('browseTasks.createTask')}
+        </button>
         <button
           type="button"
           onClick={() => setShowFilterPanel((v) => !v)}
@@ -571,7 +582,10 @@ export default function BrowseTasksPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
+        </div>
       </div>
+
+      {showCreateModal && <CreateTaskModal onClose={() => { setShowCreateModal(false); void fetchTasks(filters); }} />}
 
       <FilterPanel
         initialFilters={filters}
