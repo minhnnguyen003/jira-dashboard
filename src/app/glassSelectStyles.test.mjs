@@ -12,5 +12,5 @@ test('glass-select defines native option styling for dark mode', () => {
 });
 
 test('glass-select keeps explicit light-mode option override', () => {
-  assert.match(globalsCss, /\[data-theme="light"\]\s+select\.glass-select option\s*\{/);
+  assert.match(globalsCss, /\[data-mode="light"\]\s+select\.glass-select option\s*\{/);
 });

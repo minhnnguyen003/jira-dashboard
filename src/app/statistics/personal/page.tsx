@@ -212,16 +212,15 @@ export default function PersonalStatisticsPage() {
   }, []);
 
   const effortStyle = useMemo(() => {
-    const isLight = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
     if (effort === null) {
       return { color: 'var(--text)' };
     }
 
     if (effort > 1) {
-      return { color: isLight ? '#d14343' : '#ff8f8f' };
+      return { color: 'var(--danger)' };
     }
 
-    return { color: isLight ? '#1f8f5f' : '#72d7a0' };
+    return { color: 'var(--success)' };
   }, [effort]);
 
   return (

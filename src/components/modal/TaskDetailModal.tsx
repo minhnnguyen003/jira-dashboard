@@ -14,7 +14,9 @@ import {
   resetTaskDetailStateForIssue,
   resolveTaskDetailStateAfterSave,
 } from './taskDetailModal.helpers.js';
-import { useEffect, useState, useRef, useCallback, useSyncExternalStore, type ChangeEvent } from 'react';
+import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react';
+import { STATUS_MAP, PRIORITY_MAP, MODAL_COLORS } from '@/lib/palette';
+import { useIsLightTheme } from '@/lib/theme';
 
 interface TaskDetailModalProps {
   issue: JiraIssue | null;
@@ -117,70 +119,16 @@ const FIELD_API_MAPPING: Record<string, string> = {
   issuetype: 'issuetype',
 };
 
-const STATUS_MAP: Record<string, { bg: string; text: string; border: string }> = {
-  'To Do': { bg: 'rgba(141,145,156,0.08)', text: '#8d919c', border: 'rgba(141,145,156,0.15)' },
-  'In Progress': { bg: 'rgba(164,148,245,0.12)', text: '#a494f5', border: 'rgba(164,148,245,0.25)' },
-  'Done': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'In Review': { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
-  'Waiting': { bg: 'rgba(251,146,60,0.12)', text: '#fb923c', border: 'rgba(251,146,60,0.25)' },
-  'Resolved': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'Closed': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'Open': { bg: 'rgba(164,148,245,0.12)', text: '#a494f5', border: 'rgba(164,148,245,0.25)' },
-};
-
-const PRIORITY_MAP: Record<string, { bg: string; text: string; border: string }> = {
-  'Highest': { bg: 'rgba(242,144,150,0.15)', text: '#f29096', border: 'rgba(242,144,150,0.3)' },
-  'High': { bg: 'rgba(242,144,150,0.12)', text: '#f29096', border: 'rgba(242,144,150,0.25)' },
-  'Medium': { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
-  'Low': { bg: 'rgba(109,212,158,0.1)', text: '#6dd49e', border: 'rgba(109,212,158,0.2)' },
-  'Lowest': { bg: 'rgba(141,145,156,0.06)', text: '#8d919c', border: 'rgba(141,145,156,0.12)' },
-  'None': { bg: 'rgba(82,86,95,0.08)', text: '#52565f', border: 'rgba(82,86,95,0.15)' },
-};
-
-const DARK = {
-  cardBg: 'rgba(20,22,40,0.92)',
-  backdropBlur: 'rgba(0,0,0,0.75)',
-  border: 'rgba(255,255,255,0.1)',
-  borderRow: 'rgba(255,255,255,0.08)',
-  accent: '#a094e8',
-  accentBg: 'rgba(160,148,232,0.15)',
-  accentBorder: 'rgba(160,148,232,0.35)',
-  textPrimary: '#e8eaf0',
-  textSecondary: '#9095a8',
-  textMuted: '#5a5f6e',
-  cardBgInner: 'rgba(20,22,40,0.4)',
-  chipBg: 'rgba(255,255,255,0.06)',
-  chipBorder: 'rgba(255,255,255,0.1)',
-  chipText: '#c0c4d4',
-};
-
-const LIGHT = {
-  cardBg: 'rgba(255,255,255,0.95)',
-  backdropBlur: 'rgba(0,0,0,0.3)',
-  border: 'rgba(0,0,0,0.1)',
-  borderRow: 'rgba(0,0,0,0.06)',
-  accent: '#635de8',
-  accentBg: 'rgba(99,102,241,0.08)',
-  accentBorder: 'rgba(99,102,241,0.25)',
-  textPrimary: '#1a1c28',
-  textSecondary: '#5a5f70',
-  textMuted: '#7a7f90',
-  cardBgInner: 'rgba(255,255,255,0.6)',
-  chipBg: 'rgba(0,0,0,0.04)',
-  chipBorder: 'rgba(0,0,0,0.08)',
-  chipText: '#3a3e4e',
-};
-
 function Chip({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
       style={{
-        background: 'rgba(255,255,255,0.06)',
+        background: 'var(--chip-bg)',
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: 'rgba(255,255,255,0.1)',
-        color: '#c0c4d4',
+        borderColor: 'var(--chip-border)',
+        color: 'var(--text-secondary)',
         ...style,
       }}
     >
@@ -189,25 +137,7 @@ function Chip({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
-function LightChip({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-      style={{
-        background: 'rgba(0,0,0,0.04)',
-        borderWidth: '1px',
-        borderStyle: 'solid',
-        borderColor: 'rgba(0,0,0,0.08)',
-        color: '#3a3e4e',
-        ...style,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ValueLabel({ label, children, c }: { label: string; children: React.ReactNode; c: typeof DARK }) {
+function ValueLabel({ label, children, c }: { label: string; children: React.ReactNode; c: typeof MODAL_COLORS }) {
   return (
     <div>
       <div className="text-[11px] font-medium uppercase tracking-wider mb-1.5" style={{ color: c.textMuted }}>{label}</div>
@@ -216,8 +146,8 @@ function ValueLabel({ label, children, c }: { label: string; children: React.Rea
   );
 }
 
-function EditInput({ value, onChange, style, textPrimary, borderColor, theme }: { value: string; onChange: (v: string) => void; style?: React.CSSProperties; textPrimary: string; borderColor: string; theme?: 'dark' | 'light' }) {
-  const bg = theme === 'light' ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.1)';
+function EditInput({ value, onChange, style, textPrimary, borderColor }: { value: string; onChange: (v: string) => void; style?: React.CSSProperties; textPrimary: string; borderColor: string }) {
+  const bg = 'var(--accent-bg)';
   return (
     <input
       type="text"
@@ -235,8 +165,8 @@ function EditInput({ value, onChange, style, textPrimary, borderColor, theme }: 
   );
 }
 
-function EditSelect({ value, onChange, options, style, textPrimary, borderColor, cardBgInner, theme }: { value: string; onChange: (v: string) => void; options: string[]; style?: React.CSSProperties; textPrimary: string; borderColor: string; cardBgInner: string; theme?: 'dark' | 'light' }) {
-  const bg = theme === 'light' ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.1)';
+function EditSelect({ value, onChange, options, style, textPrimary, borderColor, cardBgInner }: { value: string; onChange: (v: string) => void; options: string[]; style?: React.CSSProperties; textPrimary: string; borderColor: string; cardBgInner: string }) {
+  const bg = 'var(--accent-bg)';
   return (
     <select
       value={value}
@@ -257,8 +187,8 @@ function EditSelect({ value, onChange, options, style, textPrimary, borderColor,
   );
 }
 
-function EditTextArea({ value, onChange, style, textPrimary, borderColor, placeholder, theme }: { value: string; onChange: (v: string) => void; style?: React.CSSProperties; textPrimary: string; borderColor: string; placeholder?: string; theme?: 'dark' | 'light' }) {
-  const bg = theme === 'light' ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.1)';
+function EditTextArea({ value, onChange, style, textPrimary, borderColor, placeholder }: { value: string; onChange: (v: string) => void; style?: React.CSSProperties; textPrimary: string; borderColor: string; placeholder?: string }) {
+  const bg = 'var(--accent-bg)';
   return (
     <textarea
       value={value}
@@ -278,8 +208,8 @@ function EditTextArea({ value, onChange, style, textPrimary, borderColor, placeh
   );
 }
 
-function DateTimePickerField({ value, onChange, textPrimary, borderColor, theme }: { value: string; onChange: (v: string) => void; textPrimary: string; borderColor: string; theme?: 'dark' | 'light' }) {
-  const bg = theme === 'light' ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.1)';
+function DateTimePickerField({ value, onChange, textPrimary, borderColor }: { value: string; onChange: (v: string) => void; textPrimary: string; borderColor: string }) {
+  const bg = 'var(--accent-bg)';
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const displayValue = formatDateTimeFromInput(value);
 
@@ -341,20 +271,6 @@ function formatDateTimeFromInput(inputValue: string): string {
   }
 }
 
-function subscribeToTheme(callback: () => void): () => void {
-  const observer = new MutationObserver(callback);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  return () => observer.disconnect();
-}
-
-function getIsLightTheme(): boolean {
-  return document.documentElement.getAttribute('data-theme') === 'light';
-}
-
-function getServerIsLightTheme(): boolean {
-  return false;
-}
-
 export default function TaskDetailModal(props: TaskDetailModalProps) {
   if (!props.issue) return null;
   return <TaskDetailModalContent key={props.issue.key} {...props} issue={props.issue} />;
@@ -362,7 +278,7 @@ export default function TaskDetailModal(props: TaskDetailModalProps) {
 
 function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDetailModalProps & { issue: JiraIssue }) {
   const { t, language } = useLanguage();
-  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, getServerIsLightTheme);
+  const isLight = useIsLightTheme();
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -579,8 +495,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
     } : previous);
   }, [canClose, issue]);
 
-  const c = isLight ? LIGHT : DARK;
-  const ChipComp = isLight ? LightChip : Chip;
+  const c = MODAL_COLORS;
+  const ChipComp = Chip;
 
   const getInitialValue = (field: string, original: unknown): string => {
     const edited = editedValues[field];
@@ -754,8 +670,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
   const issueUrl = `${baseUrl}/browse/${currentIssue.key}`;
 
   const getAssigneeName = (user: { displayName: string; name: string } | null) => {
-    if (!user) return isLight ? 'Unassigned' : 'Chưa gán';
-    return user.displayName || user.name || (isLight ? 'Unassigned' : 'Chưa gán');
+    if (!user) return language === 'vi' ? 'Chưa gán' : 'Unassigned';
+    return user.displayName || user.name || (language === 'vi' ? 'Chưa gán' : 'Unassigned');
   };
 
   const statusText = STATUS_MAP[f.status.name];
@@ -792,14 +708,14 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         {saving && (
           <div
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3"
-            style={{ background: isLight ? 'rgba(255,255,255,0.72)' : 'rgba(20,22,40,0.72)', backdropFilter: 'blur(10px)' }}
+            style={{ background: 'var(--modal-bg)', backdropFilter: 'blur(10px)' }}
           >
             <div
               className="w-9 h-9 rounded-full animate-spin"
               style={{
                 borderWidth: '3px',
                 borderStyle: 'solid',
-                borderColor: isLight ? 'rgba(99,102,241,0.18)' : 'rgba(160,148,232,0.18)',
+                borderColor: 'var(--accent-border)',
                 borderTopColor: c.accent,
               }}
             />
@@ -813,7 +729,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         >
           <div className="min-w-0 flex-1 pr-4">
             <div className="flex items-start gap-3 mb-2 min-w-0">
-              <ChipComp style={{ background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(160,148,232,0.15)', borderColor: isLight ? 'rgba(99,102,241,0.2)' : 'rgba(160,148,232,0.35)', color: c.accent }}>
+              <ChipComp style={{ background: 'var(--accent-bg)', borderColor: 'var(--accent-border)', color: c.accent }}>
                 {currentIssue.key}
               </ChipComp>
               <div className="min-w-0 flex-1">
@@ -824,7 +740,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       onChange={(v) => handleEdit('summary', v)}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
-                      theme={isLight ? 'light' : 'dark'}
                       style={{ fontWeight: 500, width: '100%' }}
                     />
                   ) : (
@@ -839,7 +754,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
           <div className="flex items-center gap-2 shrink-0">
             {editMode && (
               <>
-                <div className="text-[11px] font-medium whitespace-nowrap" style={{ color: '#fbbf24' }}>
+                <div className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'var(--warning)' }}>
                   EDIT MODE - Nhấn F10 để lưu
                   {editMetaLoading && <span style={{ color: c.textMuted }}>&nbsp;| Loading edit meta...</span>}
                 </div>
@@ -847,9 +762,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   onClick={() => { void handleSave(); }}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg"
                   style={{
-                    color: '#6dd49e',
-                    background: 'rgba(109,212,158,0.15)',
-                    border: '1px solid rgba(109,212,158,0.35)',
+                    color: 'var(--success)',
+                    background: 'var(--success-bg)',
+                    border: '1px solid var(--success-border)',
                     cursor: 'pointer',
                   }}
                 >
@@ -858,7 +773,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 <button
                   onClick={cancelEditing}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg"
-                  style={{ color: c.textMuted, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  style={{ color: c.textMuted, background: 'var(--chip-bg)', border: '1px solid var(--chip-border)' }}
                 >
                   Cancel
                 </button>
@@ -886,7 +801,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
               style={{
                 color: c.textMuted,
-                background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)',
+                background: 'var(--chip-bg)',
                 cursor: canClose ? 'pointer' : 'not-allowed',
                 opacity: canClose ? 1 : 0.5,
               }}
@@ -900,12 +815,12 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
         <div className="flex flex-1 overflow-y-auto">
           <div className="w-full px-6 py-5">
             {saveError && (
-              <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'rgba(242,144,150,0.15)', color: '#f29096', border: '1px solid rgba(242,144,150,0.3)' }}>
+              <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' }}>
                 {saveError}
               </div>
             )}
             {refreshWarning && (
-              <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+              <div className="p-3 rounded-lg text-xs mb-5" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>
                 {refreshWarning}
               </div>
             )}
@@ -917,7 +832,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   <span
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer"
                     style={{
-                      background: statusText?.bg || (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'),
+                      background: statusText?.bg || ('var(--chip-bg)'),
                       color: statusText?.text || c.chipText,
                       borderWidth: '1px',
                       borderStyle: 'solid',
@@ -947,23 +862,23 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.priority')} c={c}>
                 {editMode ? (
                   isFieldEditable('priority') ? (
-                    <EditSelect value={getInitialValue('priority', f.priority?.name || '')} options={PRIORITY_OPTIONS} onChange={(v) => handleEdit('priority', v)} textPrimary={c.textPrimary} cardBgInner={c.cardBgInner} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditSelect value={getInitialValue('priority', f.priority?.name || '')} options={PRIORITY_OPTIONS} onChange={(v) => handleEdit('priority', v)} textPrimary={c.textPrimary} cardBgInner={c.cardBgInner} borderColor={c.chipBorder} />
                   ) : (
                     <ChipComp style={{
-                      background: priorityText?.bg || (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'),
+                      background: priorityText?.bg || ('var(--chip-bg)'),
                       color: priorityText?.text || c.chipText,
                       borderColor: priorityText?.border || c.chipBorder,
                     }}>
-                      {f.priority?.name || (isLight ? 'None' : 'Không')}
+                      {f.priority?.name || (language === 'vi' ? 'Không' : 'None')}
                     </ChipComp>
                   )
                 ) : (
                   <ChipComp style={{
-                    background: priorityText?.bg || (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'),
+                    background: priorityText?.bg || ('var(--chip-bg)'),
                     color: priorityText?.text || c.chipText,
                     borderColor: priorityText?.border || c.chipBorder,
                   }}>
-                    {f.priority?.name || (isLight ? 'None' : 'Không')}
+                    {f.priority?.name || (language === 'vi' ? 'Không' : 'None')}
                   </ChipComp>
                 )}
               </ValueLabel>
@@ -993,7 +908,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   {transitionLoading ? (
                     <div className="p-3 text-center text-xs" style={{ color: c.textMuted }}>{t('jql.loading')}</div>
                   ) : transitionLoadError ? (
-                    <div className="p-3 text-xs" style={{ color: '#f29096', background: 'rgba(242,144,150,0.15)' }}>{transitionLoadError}</div>
+                    <div className="p-3 text-xs" style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>{transitionLoadError}</div>
                   ) : transitions.length === 0 ? (
                     <div className="p-3 text-xs" style={{ color: c.textMuted }}>No transitions available</div>
                   ) : (
@@ -1002,7 +917,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                         key={tr.id}
                         className="w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2"
                         style={{
-                          color: tr.to.name === 'Done' ? '#6dd49e' : tr.to.name === 'In Progress' ? '#a494f5' : c.textPrimary,
+                          color: tr.to.name === 'Done' ? 'var(--success)' : tr.to.name === 'In Progress' ? 'var(--accent)' : c.textPrimary,
                           background: 'transparent',
                           cursor: 'pointer',
                         }}
@@ -1024,7 +939,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.assignee')} c={c}>
                 {editMode ? (
                   isFieldEditable('assignee') ? (
-                    <EditInput value={getInitialValue('assignee', f.assignee?.displayName || '')} onChange={(v) => handleEdit('assignee', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditInput value={getInitialValue('assignee', f.assignee?.displayName || '')} onChange={(v) => handleEdit('assignee', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                   ) : (
                     <ChipComp>
                       {getAvatarUrl(f.assignee) && (
@@ -1045,7 +960,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.reporter')} c={c}>
                 {editMode ? (
                   isFieldEditable('reporter') ? (
-                    <EditInput value={getInitialValue('reporter', f.reporter?.displayName || '')} onChange={(v) => handleEdit('reporter', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditInput value={getInitialValue('reporter', f.reporter?.displayName || '')} onChange={(v) => handleEdit('reporter', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                   ) : (
                   <ChipComp style={{ color: c.accent }}>
                     {getAvatarUrl(f.reporter) && (
@@ -1066,7 +981,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.sprint')} c={c}>
                 {editMode ? (
                   isFieldEditable('sprint') ? (
-                    <EditInput value={getInitialValue('sprint', f.sprint?.name || '')} onChange={(v) => handleEdit('sprint', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditInput value={getInitialValue('sprint', f.sprint?.name || '')} onChange={(v) => handleEdit('sprint', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                   ) : (
                     <ChipComp>{f.sprint?.name || '-'}</ChipComp>
                   )
@@ -1081,7 +996,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.timeoriginalestimate')} c={c}>
                 {editMode ? (
                   isFieldEditable('timeoriginalestimate') ? (
-                    <EditInput value={getInitialValue('timeoriginalestimate', formatTime(f.timeoriginalestimate ? parseInt(f.timeoriginalestimate) : null))} onChange={(v) => handleEdit('timeoriginalestimate', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditInput value={getInitialValue('timeoriginalestimate', formatTime(f.timeoriginalestimate ? parseInt(f.timeoriginalestimate) : null))} onChange={(v) => handleEdit('timeoriginalestimate', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                   ) : (
                     <ChipComp>{formatTime(f.timeoriginalestimate ? parseInt(f.timeoriginalestimate) : null)}</ChipComp>
                   )
@@ -1092,7 +1007,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
               <ValueLabel label={t('dialog.timeestimate')} c={c}>
                 {editMode ? (
                   isFieldEditable('timeestimate') ? (
-                    <EditInput value={getInitialValue('timeestimate', formatTime(f.timeestimate ? parseInt(f.timeestimate) : null))} onChange={(v) => handleEdit('timeestimate', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                    <EditInput value={getInitialValue('timeestimate', formatTime(f.timeestimate ? parseInt(f.timeestimate) : null))} onChange={(v) => handleEdit('timeestimate', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                   ) : (
                     <ChipComp style={{ color: c.accent }}>{formatTime(f.timeestimate ? parseInt(f.timeestimate) : null)}</ChipComp>
                   )
@@ -1101,7 +1016,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 )}
               </ValueLabel>
               <ValueLabel label={t('dialog.timespent')} c={c}>
-                <ChipComp style={{ color: isLight ? '#2da66e' : '#5ec49a' }}>{formatTime(f.timespent ? parseInt(f.timespent) : null)}</ChipComp>
+                <ChipComp style={{ color: 'var(--success)' }}>{formatTime(f.timespent ? parseInt(f.timespent) : null)}</ChipComp>
               </ValueLabel>
             </div>
 
@@ -1115,7 +1030,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, startDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
-                      theme={isLight ? 'light' : 'dark'}
                     />
                   ) : (
                     <ChipComp>{formatDateTime(f.customfield_10300 || f.startdate)}</ChipComp>
@@ -1132,7 +1046,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, dueDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
-                      theme={isLight ? 'light' : 'dark'}
                     />
                   ) : (
                     <ChipComp>{formatDateTime(f.customfield_10302 || f.duedate)}</ChipComp>
@@ -1149,7 +1062,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       onChange={(value) => setEditState((prev) => ({ ...prev, datetimeValues: { ...prev.datetimeValues, resolutionDate: value } }))}
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
-                      theme={isLight ? 'light' : 'dark'}
                     />
                   ) : (
                     <ChipComp>{formatDateTime(f.resolutiondate)}</ChipComp>
@@ -1171,7 +1083,6 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       textPrimary={c.textPrimary}
                       borderColor={c.chipBorder}
                       placeholder={getDescriptionPlaceholder(getInitialValue('description', f.description || ''), language)}
-                      theme={isLight ? 'light' : 'dark'}
                     />
                   ) : (
                     <div
@@ -1182,7 +1093,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                         color: c.textSecondary,
                       }}
                     >
-                      {f.description || (isLight ? 'No description' : 'Không có mô tả')}
+                      {f.description || (language === 'vi' ? 'Không có mô tả' : 'No description')}
                     </div>
                   )
                 ) : (
@@ -1194,7 +1105,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                       color: c.textSecondary,
                     }}
                   >
-                    {f.description || (isLight ? 'No description' : 'Không có mô tả')}
+                    {f.description || (language === 'vi' ? 'Không có mô tả' : 'No description')}
                   </div>
                 )}
               </ValueLabel>
@@ -1207,7 +1118,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   <ValueLabel label={t('dialog.epic')} c={c}>
                     {editMode ? (
                       isFieldEditable('epic') ? (
-                        <EditInput value={getInitialValue('epic', f.epic.key)} onChange={(v) => handleEdit('epic', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                        <EditInput value={getInitialValue('epic', f.epic.key)} onChange={(v) => handleEdit('epic', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                       ) : (
                         <ChipComp>
                           <a href={`${baseUrl}/browse/${f.epic.key}`} target="_blank" rel="noopener noreferrer" className="hover:underline font-mono font-semibold" style={{ color: c.accent }}>
@@ -1230,7 +1141,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   <ValueLabel label={t('dialog.parent')} c={c}>
                     {editMode ? (
                       isFieldEditable('parent') ? (
-                        <EditInput value={getInitialValue('parent', f.parent.key)} onChange={(v) => handleEdit('parent', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                        <EditInput value={getInitialValue('parent', f.parent.key)} onChange={(v) => handleEdit('parent', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                       ) : (
                         <ChipComp>
                           <a href={`${baseUrl}/browse/${f.parent.key}`} target="_blank" rel="noopener noreferrer" className="hover:underline font-mono font-semibold" style={{ color: c.accent }}>
@@ -1258,14 +1169,14 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   <ValueLabel label={t('dialog.labels')} c={c}>
                     {editMode ? (
                       isFieldEditable('labels') ? (
-                        <EditInput value={getInitialValue('labels', f.labels.join(', '))} onChange={(v) => handleEdit('labels', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                        <EditInput value={getInitialValue('labels', f.labels.join(', '))} onChange={(v) => handleEdit('labels', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
                           {f.labels.map((label) => (
                             <ChipComp key={label} style={{
-                              background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.08)',
+                              background: 'var(--accent-bg)',
                               color: c.chipText,
-                              borderColor: isLight ? 'rgba(99,102,241,0.15)' : 'rgba(160,148,232,0.15)',
+                              borderColor: 'var(--accent-border)',
                             }}>
                               {label}
                             </ChipComp>
@@ -1276,9 +1187,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                     <div className="flex flex-wrap gap-1.5">
                       {f.labels.map((label) => (
                         <ChipComp key={label} style={{
-                          background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(160,148,232,0.08)',
+                          background: 'var(--accent-bg)',
                           color: c.chipText,
-                          borderColor: isLight ? 'rgba(99,102,241,0.15)' : 'rgba(160,148,232,0.15)',
+                          borderColor: 'var(--accent-border)',
                         }}>
                           {label}
                         </ChipComp>
@@ -1295,7 +1206,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 <ValueLabel label={t('dialog.resolution')} c={c}>
                   {editMode ? (
                     isFieldEditable('resolution') ? (
-                      <EditInput value={getInitialValue('resolution', f.resolution.name)} onChange={(v) => handleEdit('resolution', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} theme={isLight ? 'light' : 'dark'} />
+                      <EditInput value={getInitialValue('resolution', f.resolution.name)} onChange={(v) => handleEdit('resolution', v)} textPrimary={c.textPrimary} borderColor={c.chipBorder} />
                     ) : (
                       <ChipComp>{f.resolution.name}</ChipComp>
                     )
@@ -1347,7 +1258,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
                 style={{
                   color: c.textMuted,
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--chip-bg)',
                   cursor: canClose ? 'pointer' : 'not-allowed',
                   opacity: canClose ? 1 : 0.5,
                 }}
@@ -1363,7 +1274,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                   <div className="text-xs" style={{ color: c.textMuted }}>
                     <span style={{ color: statusText?.text || c.chipText }}>{f.status.name}</span>
                     <span style={{ color: c.textMuted }}> → </span>
-                    <span style={{ color: '#6dd49e' }}>{selectedTransition.to.name}</span>
+                    <span style={{ color: 'var(--success)' }}>{selectedTransition.to.name}</span>
                   </div>
                   <div className="text-xs mt-1" style={{ color: c.textMuted }}>Transition: {selectedTransition.name}</div>
                 </div>
@@ -1378,7 +1289,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                         <div key={fieldId}>
                           <label className="text-xs font-medium mb-1.5 block" style={{ color: c.textSecondary }}>
                             {fieldDef.name || fieldId}
-                            {fieldDef.required && <span style={{ color: '#f29096' }}> *</span>}
+                            {fieldDef.required && <span style={{ color: 'var(--danger)' }}> *</span>}
                           </label>
 
                           {fieldDef.schema?.type === 'resolution' && fieldDef.allowedValues?.length ? (
@@ -1387,8 +1298,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               onChange={(e) => updateField(fieldId, e.target.value)}
                               className="px-3 py-1.5 rounded-xl text-sm w-full"
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1406,8 +1317,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               placeholder="dd/mm/yyyy hh:mm"
                               className="px-3 py-1.5 rounded-xl text-sm w-full"
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1420,8 +1331,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               placeholder="dd/mm/yyyy hh:mm"
                               className="px-3 py-1.5 rounded-xl text-sm w-full"
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1434,8 +1345,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               className="px-3 py-1.5 rounded-xl text-sm w-full resize-none"
                               rows={3}
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1448,8 +1359,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               placeholder="1d 2h 30m"
                               className="px-3 py-1.5 rounded-xl text-sm w-full"
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1461,8 +1372,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                               onChange={(e) => updateField(fieldId, e.target.value)}
                               className="px-3 py-1.5 rounded-xl text-sm w-full"
                               style={{
-                                background: 'rgba(160,148,232,0.1)',
-                                border: '1px solid rgba(160,148,232,0.3)',
+                                background: 'var(--accent-bg)',
+                                border: '1px solid var(--accent-border)',
                                 color: c.textPrimary,
                                 outline: 'none',
                               }}
@@ -1475,7 +1386,7 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 )}
 
                 {transitionActionError && (
-                  <div className="p-3 rounded-lg text-xs mb-4" style={{ background: 'rgba(242,144,150,0.15)', color: '#f29096', border: '1px solid rgba(242,144,150,0.3)' }}>
+                  <div className="p-3 rounded-lg text-xs mb-4" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' }}>
                     {transitionActionError}
                   </div>
                 )}
@@ -1489,8 +1400,8 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 className="px-4 py-2 text-sm rounded-xl"
                 style={{
                   color: c.textMuted,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'var(--chip-bg)',
+                  border: '1px solid var(--chip-border)',
                   cursor: canClose ? 'pointer' : 'not-allowed',
                   opacity: canClose ? 1 : 0.5,
                 }}
@@ -1502,9 +1413,9 @@ function TaskDetailModalContent({ issue, onClose, onLogWork, onRefresh }: TaskDe
                 disabled={transitioning}
                 className="px-6 py-2 text-sm rounded-xl font-medium"
                 style={{
-                  color: '#6dd49e',
-                  background: 'rgba(109,212,158,0.15)',
-                  border: '1px solid rgba(109,212,158,0.35)',
+                  color: 'var(--success)',
+                  background: 'var(--success-bg)',
+                  border: '1px solid var(--success-border)',
                   cursor: transitioning ? 'not-allowed' : 'pointer',
                 }}
               >

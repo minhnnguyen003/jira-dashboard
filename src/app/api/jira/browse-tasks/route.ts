@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
       clauses.push(`assignee = "${assignee.replace(/"/g, '\\"')}"`);
     }
 
-    const { clauses: dateClauses, orderBy } = buildDateClauses({ from: startFrom, to: startTo, dateField: 'startDate' });
+    const { clauses: dateClauses, orderBy } = buildDateClauses({ from: startFrom, to: startTo, dateField: searchParams.get('dateField') || undefined });
     clauses.push(...dateClauses);
 
     const jql = clauses.length > 0

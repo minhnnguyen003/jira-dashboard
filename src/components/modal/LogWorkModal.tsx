@@ -1,7 +1,9 @@
 'use client';
 
 import { useLanguage } from '@/lib/i18n';
-import { useState, useRef, useMemo, useSyncExternalStore } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useIsLightTheme } from '@/lib/theme';
+import { MODAL_COLORS } from '@/lib/palette';
 
 interface LogWorkModalProps {
   issueKey: string;
@@ -52,19 +54,9 @@ function getDefaultStarted(): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function subscribeToTheme(onStoreChange: () => void) {
-  const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  return () => observer.disconnect();
-}
-
-function getIsLightTheme() {
-  return document.documentElement.getAttribute('data-theme') === 'light';
-}
-
 export default function LogWorkModal({ issueKey, issueSummary, originalEstimate, onClose, onSuccess }: LogWorkModalProps) {
   const { t } = useLanguage();
-  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
+  const isLight = useIsLightTheme();
   const [timeSpent, setTimeSpent] = useState('');
   const [dateStarted, setDateStarted] = useState(getDefaultStarted());
   const [remainingEstimateType, setRemainingEstimateType] = useState<RemainingEstimateType>('auto');
@@ -76,7 +68,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
 
   const formattedOriginalEstimate = useMemo(() => formatRemainingEstimate(originalEstimate), [originalEstimate]);
 
-  const c = isLight ? LIGHT : DARK;
+  const c = MODAL_COLORS;
 
   const handleSubmit = async () => {
     if (!timeSpent.trim()) {
@@ -161,7 +153,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-sm"
-            style={{ color: c.textMuted, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)' }}
+            style={{ color: c.textMuted, background: 'var(--chip-bg)' }}
           >
             ✕
           </button>
@@ -174,9 +166,9 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
               <div
                 className="p-3 rounded-xl text-xs"
                 style={{
-                  background: 'rgba(242,144,150,0.15)',
-                  color: '#f29096',
-                  border: '1px solid rgba(242,144,150,0.3)',
+                  background: 'var(--danger-bg)',
+                  color: 'var(--danger)',
+                  border: '1px solid var(--danger-border)',
                 }}
               >
                 {error}
@@ -186,7 +178,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
             {/* Time Spent */}
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: c.textMuted }}>
-                {t('logWork.timeSpent')} <span style={{ color: '#f29096' }}>*</span>
+                {t('logWork.timeSpent')} <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
                 type="text"
@@ -206,7 +198,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
             {/* Date Started */}
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: c.textMuted }}>
-                {t('logWork.dateStarted')} <span style={{ color: '#f29096' }}>*</span>
+                {t('logWork.dateStarted')} <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <input
                 type="datetime-local"
@@ -297,7 +289,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
             className="text-sm font-medium px-4 py-2 rounded-xl"
             style={{
               color: c.textMuted,
-              background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.4)',
+              background: 'var(--chip-bg)',
               border: `1px solid ${c.border}`,
               cursor: saving ? 'not-allowed' : 'pointer',
               opacity: saving ? 0.5 : 1,
@@ -310,7 +302,7 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
             disabled={saving}
             className="text-sm font-medium px-4 py-2 rounded-xl"
             style={{
-              color: '#fff',
+              color: 'var(--on-accent)',
               background: c.accent,
               border: `1px solid ${c.accent}`,
               cursor: saving ? 'not-allowed' : 'pointer',
@@ -325,28 +317,3 @@ export default function LogWorkModal({ issueKey, issueSummary, originalEstimate,
   );
 }
 
-const DARK = {
-  cardBg: 'rgba(20,22,40,0.95)',
-  backdropBlur: 'rgba(0,0,0,0.75)',
-  border: 'rgba(255,255,255,0.1)',
-  borderRow: 'rgba(255,255,255,0.08)',
-  accent: '#a094e8',
-  textPrimary: '#e8eaf0',
-  textSecondary: '#9095a8',
-  textMuted: '#5a5f6e',
-  inputBg: 'rgba(255,255,255,0.05)',
-  inputBorder: 'rgba(255,255,255,0.12)',
-};
-
-const LIGHT = {
-  cardBg: 'rgba(255,255,255,0.95)',
-  backdropBlur: 'rgba(0,0,0,0.3)',
-  border: 'rgba(0,0,0,0.1)',
-  borderRow: 'rgba(0,0,0,0.06)',
-  accent: '#635de8',
-  textPrimary: '#1a1c28',
-  textSecondary: '#5a5f70',
-  textMuted: '#7a7f90',
-  inputBg: 'rgba(0,0,0,0.02)',
-  inputBorder: 'rgba(0,0,0,0.1)',
-};

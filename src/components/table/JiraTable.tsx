@@ -3,6 +3,7 @@
 import { MouseEvent, useState, useCallback } from 'react';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
+import { STATUS_MAP, PRIORITY_MAP, NEUTRAL_BADGE } from '@/lib/palette';
 
 interface JiraTableProps {
   data: DashboardIssue[];
@@ -40,26 +41,6 @@ const DEFAULT_COLUMN_WIDTHS: Record<(typeof VISIBLE_COLUMNS)[number], number> = 
 };
 
 const MIN_COLUMN_WIDTH = 72;
-
-const STATUS_MAP: Record<string, { bg: string; text: string; border: string }> = {
-  'To Do': { bg: 'rgba(141,145,156,0.08)', text: '#8d919c', border: 'rgba(141,145,156,0.15)' },
-  'In Progress': { bg: 'rgba(164,148,245,0.12)', text: '#a494f5', border: 'rgba(164,148,245,0.25)' },
-  'Done': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'In Review': { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
-  'Waiting': { bg: 'rgba(251,146,60,0.12)', text: '#fb923c', border: 'rgba(251,146,60,0.25)' },
-  'Resolved': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'Closed': { bg: 'rgba(109,212,158,0.12)', text: '#6dd49e', border: 'rgba(109,212,158,0.25)' },
-  'Open': { bg: 'rgba(164,148,245,0.12)', text: '#a494f5', border: 'rgba(164,148,245,0.25)' },
-};
-
-const PRIORITY_MAP: Record<string, { bg: string; text: string; border: string }> = {
-  'Highest': { bg: 'rgba(242,144,150,0.15)', text: '#f29096', border: 'rgba(242,144,150,0.3)' },
-  'High': { bg: 'rgba(242,144,150,0.12)', text: '#f29096', border: 'rgba(242,144,150,0.25)' },
-  'Medium': { bg: 'rgba(251,191,36,0.12)', text: '#fbbf24', border: 'rgba(251,191,36,0.25)' },
-  'Low': { bg: 'rgba(109,212,158,0.1)', text: '#6dd49e', border: 'rgba(109,212,158,0.2)' },
-  'Lowest': { bg: 'rgba(141,145,156,0.06)', text: '#8d919c', border: 'rgba(141,145,156,0.12)' },
-  'None': { bg: 'rgba(82,86,95,0.08)', text: '#52565f', border: 'rgba(82,86,95,0.15)' },
-};
 
 const COLUMN_LABEL_KEYS: Record<SortField, Parameters<ReturnType<typeof useLanguage>['t']>[0]> = {
   key: 'table.column.key',
@@ -237,9 +218,9 @@ export default function JiraTable({ data, onPageChange, initialVisibleColumns, c
         return (
           <td key={`td-${issue.id}-${col}`} className="px-4 py-2.5">
             <span className="badge-glass" style={{
-              background: STATUS_MAP[issue.status]?.bg || 'rgba(141,145,156,0.08)',
-              color: STATUS_MAP[issue.status]?.text || '#8d919c',
-              borderColor: STATUS_MAP[issue.status]?.border || 'rgba(141,145,156,0.12)',
+              background: (STATUS_MAP[issue.status] ?? NEUTRAL_BADGE).bg,
+              color: (STATUS_MAP[issue.status] ?? NEUTRAL_BADGE).text,
+              borderColor: (STATUS_MAP[issue.status] ?? NEUTRAL_BADGE).border,
             }}>
               {issue.status}
             </span>
@@ -251,9 +232,9 @@ export default function JiraTable({ data, onPageChange, initialVisibleColumns, c
         return (
           <td key={`td-${issue.id}-${col}`} className="px-4 py-2.5">
             <span className="badge-glass" style={{
-              background: PRIORITY_MAP[issue.priority]?.bg || 'rgba(82,86,95,0.08)',
-              color: PRIORITY_MAP[issue.priority]?.text || '#52565f',
-              borderColor: PRIORITY_MAP[issue.priority]?.border || 'rgba(82,86,95,0.12)',
+              background: (PRIORITY_MAP[issue.priority] ?? NEUTRAL_BADGE).bg,
+              color: (PRIORITY_MAP[issue.priority] ?? NEUTRAL_BADGE).text,
+              borderColor: (PRIORITY_MAP[issue.priority] ?? NEUTRAL_BADGE).border,
             }}>
               {issue.priority || '-'}
             </span>
@@ -289,9 +270,9 @@ export default function JiraTable({ data, onPageChange, initialVisibleColumns, c
             <div className="flex flex-wrap gap-1.5">
               {(issue.labels || []).slice(0, 3).map((label) => (
                 <span key={label} className="badge-glass" style={{
-                  background: 'rgba(160,148,232,0.08)',
+                  background: 'var(--accent-bg)',
                   color: 'var(--text-dim)',
-                  borderColor: 'rgba(160,148,232,0.15)',
+                  borderColor: 'var(--border-hover)',
                   fontSize: '10px',
                   padding: '2px 7px',
                 }}>

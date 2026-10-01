@@ -8,6 +8,7 @@ import JiraTable from '@/components/table/JiraTable';
 import TaskDetailModal from '@/components/modal/TaskDetailModal';
 import LogWorkModal from '@/components/modal/LogWorkModal';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
+import { useChartColors, withAlpha } from '@/lib/theme';
 import {
   createHoursByDateInitialState,
   updateHoursByDateDraftRange,
@@ -153,9 +154,7 @@ export default function HoursByDatePage() {
     return Math.round((totalHours / workingDays) * 100) / 100;
   }, [totalHours, workingDays]);
 
-  const isLight = useMemo(() => {
-    return typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
-  }, []);
+  const colors = useChartColors();
 
   const handleExportChart = useCallback(() => {
     const canvas = document.querySelector('#chart-container canvas');
@@ -203,15 +202,15 @@ export default function HoursByDatePage() {
     datasets: [
       {
         data: data.map((d) => d.hours),
-        backgroundColor: isLight ? 'rgba(124,111,240,0.7)' : 'rgba(164,148,245,0.75)',
-        borderColor: isLight ? 'rgba(124,111,240,0.9)' : 'rgba(164,148,245,0.9)',
+        backgroundColor: withAlpha(colors.accent, 0.75),
+        borderColor: withAlpha(colors.accent, 0.9),
         borderWidth: 1,
         borderRadius: 4,
         borderSkipped: false,
         barThickness: 24,
       },
     ],
-  }), [data, isLight]);
+  }), [data, colors]);
 
   const handleTaskClick = useCallback((issue: JiraIssue) => {
     setSelectedIssue(issue);
@@ -273,15 +272,15 @@ export default function HoursByDatePage() {
       title: {
         display: true,
         text: t('hoursByDate.title'),
-        color: isLight ? '#2a2e3a' : '#e6e8ec',
+        color: colors.text,
         font: { size: 13, weight: 'bold' },
         padding: { top: 4, bottom: 8 },
       },
       tooltip: {
-        backgroundColor: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(17,20,28,0.9)',
-        titleColor: isLight ? '#1a1d26' : '#e6e8ec',
-        bodyColor: isLight ? '#5a6070' : '#8d919c',
-        borderColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
+        backgroundColor: colors.tooltipBg,
+        titleColor: colors.text,
+        bodyColor: colors.textDim,
+        borderColor: colors.tooltipBorder,
         borderWidth: 1,
         cornerRadius: 8,
         padding: 10,
@@ -298,7 +297,7 @@ export default function HoursByDatePage() {
       x: {
         type: 'category',
         ticks: {
-          color: isLight ? '#6b7080' : '#8d919c',
+          color: colors.textDim,
           font: { size: 10 },
           autoSkip: false,
           maxRotation: 45,
@@ -310,11 +309,11 @@ export default function HoursByDatePage() {
       y: {
         beginAtZero: true,
         ticks: {
-          color: isLight ? '#6b7080' : '#8d919c',
+          color: colors.textDim,
           font: { size: 10 },
           callback: (value) => `${Number(value).toFixed(1)}h`,
         },
-        grid: { color: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)' },
+        grid: { color: colors.grid },
         border: { display: false },
       },
     },
@@ -330,7 +329,7 @@ export default function HoursByDatePage() {
         event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
       }
     },
-  }), [isLight, t, data, handleBarClick]);
+  }), [colors, t, data, handleBarClick]);
 
   return (
     <div className="flex flex-col flex-1 p-6">

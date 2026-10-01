@@ -54,12 +54,22 @@ interface JiraUser {
   email: string;
 }
 
+type DateFieldOption = 'startDate' | 'created' | 'updated' | 'endDate';
+
+const DATE_FIELD_OPTIONS: Array<{ value: DateFieldOption; label: string }> = [
+  { value: 'startDate', label: 'Start Date' },
+  { value: 'created', label: 'Creation Date' },
+  { value: 'updated', label: 'Lasted Update' },
+  { value: 'endDate', label: 'End Date' },
+];
+
 interface BrowseFilters {
   search: string;
   project: string;
   statuses: string[];
   issueType: string;
   assignee: string;
+  dateField: DateFieldOption;
   startFrom: string;
   startTo: string;
 }
@@ -70,6 +80,7 @@ const EMPTY_FILTERS: BrowseFilters = {
   statuses: [],
   issueType: '',
   assignee: '',
+  dateField: 'startDate',
   startFrom: '',
   startTo: '',
 };
@@ -184,8 +195,20 @@ function FilterPanel({ initialFilters, projects, issueTypes, statuses, users, us
               />
             </div>
 
-            {/* Row 2: from date + to date */}
+            {/* Row 2: date field + from date + to date */}
             <div className="flex flex-wrap gap-4">
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.dateFieldLabel')}</label>
+                <select
+                  value={filters.dateField}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, dateField: e.target.value as DateFieldOption }))}
+                  className="glass-select w-full px-3 py-2 text-sm"
+                >
+                  {DATE_FIELD_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
               <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-dim)' }}>{t('browseTasks.fromLabel')}</label>
                 <DatePickerField
@@ -384,6 +407,7 @@ export default function BrowseTasksPage() {
       if (f.issueType) params.set('issueType', f.issueType);
       f.statuses.forEach((s) => params.append('status', s));
       if (f.assignee) params.set('assignee', f.assignee);
+      params.set('dateField', f.dateField);
       if (f.startFrom) params.set('startFrom', f.startFrom);
       if (f.startTo) params.set('startTo', f.startTo);
       params.set('startAt', '0');

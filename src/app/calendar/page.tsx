@@ -37,7 +37,7 @@ function getStatusColor(status: string) {
   if (value.includes('done') || value.includes('closed') || value.includes('resolved')) return 'var(--success)';
   if (value.includes('progress')) return 'var(--accent)';
   if (value.includes('cancel')) return 'var(--text-muted)';
-  return '#a855f7';
+  return 'var(--orange)';
 }
 
 async function readIssueByKey(key: string): Promise<JiraIssue> {
@@ -180,11 +180,11 @@ export default function CalendarPage() {
                   {weekDays.map((day) => {
                     const isCurrentMonth = day.getMonth() === month.getMonth();
                     const isToday = day.toDateString() === new Date().toDateString();
-                    return <div key={day.toISOString()} className="border-r p-2 last:border-r-0" style={{ borderColor: 'var(--border)', background: isCurrentMonth ? 'transparent' : 'rgba(127,127,127,0.06)' }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium" style={{ color: isToday ? 'var(--bg)' : isCurrentMonth ? 'var(--text)' : 'var(--text-muted)', background: isToday ? 'var(--accent)' : 'transparent' }}>{day.getDate()}</span></div>;
+                    return <div key={day.toISOString()} className="border-r p-2 last:border-r-0" style={{ borderColor: 'var(--border)', background: isCurrentMonth ? 'transparent' : 'var(--surface-light)' }}><span className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium" style={{ color: isToday ? 'var(--bg)' : isCurrentMonth ? 'var(--text)' : 'var(--text-muted)', background: isToday ? 'var(--accent)' : 'transparent' }}>{day.getDate()}</span></div>;
                   })}
                   <div className="pointer-events-none absolute inset-x-0 top-9 grid grid-cols-7 gap-y-1 px-1">
                     {segments.map((segment) => (
-                      <button key={`${segment.task.key}-${segment.weekIndex}-${segment.startDayIndex}`} type="button" onClick={() => { void openTaskDetail(segment.task); }} className="pointer-events-auto h-6 truncate rounded px-2 text-left text-[11px] font-medium shadow-sm" title={`${segment.task.key}: ${segment.task.summary}`} style={{ gridColumn: `${segment.startDayIndex + 1} / span ${segment.span}`, gridRow: segment.lane + 1, color: 'white', background: getStatusColor(segment.task.status) }}>
+                      <button key={`${segment.task.key}-${segment.weekIndex}-${segment.startDayIndex}`} type="button" onClick={() => { void openTaskDetail(segment.task); }} className="pointer-events-auto h-6 truncate rounded px-2 text-left text-[11px] font-medium shadow-sm" title={`${segment.task.key}: ${segment.task.summary}`} style={{ gridColumn: `${segment.startDayIndex + 1} / span ${segment.span}`, gridRow: segment.lane + 1, color: 'var(--on-accent)', background: getStatusColor(segment.task.status) }}>
                         {segment.task.key} · {segment.task.summary}
                       </button>
                     ))}

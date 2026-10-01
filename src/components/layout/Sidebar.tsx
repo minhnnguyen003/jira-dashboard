@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useSyncExternalStore } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n';
 import CreateTaskModal from '@/components/modal/CreateTaskModal';
 import UserBar from '@/components/layout/UserBar';
 import LogoutOverlay from '@/components/layout/LogoutOverlay';
+import ThemePicker from '@/components/layout/ThemePicker';
 
 interface SubMenuItem {
   href: string;
@@ -162,25 +163,6 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-const THEME_CHANGE_EVENT = 'jira-dashboard-theme-change';
-
-function getStoredTheme(): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'dark';
-  return window.localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
-}
-
-function subscribeToTheme(onStoreChange: () => void) {
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key === 'theme') onStoreChange();
-  };
-  window.addEventListener('storage', handleStorage);
-  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
-  return () => {
-    window.removeEventListener('storage', handleStorage);
-    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
-  };
-}
-
 function getActiveMenuLabels(pathname: string) {
   return new Set(
     menuItems
@@ -192,7 +174,6 @@ function getActiveMenuLabels(pathname: string) {
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
-  const isDark = useSyncExternalStore(subscribeToTheme, getStoredTheme, () => 'dark') === 'dark';
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => getActiveMenuLabels(pathname));
   const [expandedPathname, setExpandedPathname] = useState(pathname);
@@ -217,26 +198,6 @@ export default function Sidebar() {
   useEffect(() => {
     document.getElementById('main-content')?.style.setProperty('margin-left', effectiveCollapsed ? '56px' : '224px');
   }, [effectiveCollapsed]);
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
-  }, [isDark]);
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    if (next) {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'light');
-      localStorage.setItem('theme', 'light');
-    }
-    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
-  };
 
   const toggleExpand = (label: string) => {
     setExpandedMenus((prev) => {
@@ -308,27 +269,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-1">
           {!effectiveCollapsed && (
             <>
-              <button
-                onClick={toggleTheme}
-                className="p-1.5 rounded-lg transition-all duration-200"
-                style={{
-                  color: 'var(--text-dim)',
-                  background: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-bg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                title={isDark ? t('theme.light') : t('theme.dark')}
-              >
-                {isDark ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-              </button>
+              <ThemePicker />
               <button
                 onClick={toggleLanguage}
                 className="px-2 py-1 rounded-lg transition-all duration-200 text-[10px] font-semibold"

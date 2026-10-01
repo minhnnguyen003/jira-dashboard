@@ -18,12 +18,12 @@ export default function LogoutOverlay() {
   return (
     <div
       className="fixed inset-0 z-[2000] flex flex-col items-center justify-center gap-4"
-      style={{ background: 'rgba(4,5,16,0.78)', backdropFilter: 'blur(10px)' }}
+      style={{ background: 'var(--modal-backdrop)', backdropFilter: 'blur(10px)' }}
     >
       <div
         className="w-10 h-10 rounded-full animate-spin"
         style={{
-          border: '3px solid rgba(255,255,255,0.15)',
+          border: '3px solid var(--border-hover)',
           borderTopColor: 'var(--accent)',
         }}
       />

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/lib/i18n';
+import { useIsLightTheme } from '@/lib/theme';
 
 interface JiraUserOption {
   name: string;
@@ -14,41 +15,18 @@ interface ProfileSetupModalProps {
   onSelectProfile: (profile: { displayName: string; email: string; avatarUrl: string }) => void;
 }
 
-const DARK = {
-  overlay: 'rgba(4,5,16,0.78)',
-  cardBg: 'rgba(20,22,40,0.92)',
-  border: 'rgba(255,255,255,0.1)',
-  inputBg: 'rgba(255,255,255,0.04)',
-  inputBorder: 'rgba(255,255,255,0.1)',
-  resultBg: 'rgba(11,13,28,0.86)',
-  resultHover: 'rgba(160,148,232,0.14)',
-  text: '#e8eaf0',
-  textSecondary: '#c0c4d4',
-  textMuted: '#8e94a8',
+const COLORS = {
+  overlay: 'var(--modal-backdrop)',
+  cardBg: 'var(--modal-bg)',
+  border: 'var(--modal-border)',
+  inputBg: 'var(--input-bg)',
+  inputBorder: 'var(--input-border)',
+  resultBg: 'var(--dropdown-bg)',
+  resultHover: 'var(--accent-bg)',
+  text: 'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted: 'var(--text-dim)',
 };
-
-const LIGHT = {
-  overlay: 'rgba(215,218,232,0.58)',
-  cardBg: 'rgba(255,255,255,0.92)',
-  border: 'rgba(0,0,0,0.1)',
-  inputBg: 'rgba(255,255,255,0.8)',
-  inputBorder: 'rgba(0,0,0,0.1)',
-  resultBg: 'rgba(255,255,255,0.96)',
-  resultHover: 'rgba(99,102,241,0.08)',
-  text: '#1a1c28',
-  textSecondary: '#3a3e4e',
-  textMuted: '#6b7285',
-};
-
-function subscribeToTheme(onStoreChange: () => void) {
-  const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  return () => observer.disconnect();
-}
-
-function getIsLightTheme() {
-  return document.documentElement.getAttribute('data-theme') === 'light';
-}
 
 function isAbortError(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
@@ -56,7 +34,7 @@ function isAbortError(error: unknown) {
 
 export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModalProps) {
   const { t } = useLanguage();
-  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
+  const isLight = useIsLightTheme();
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<JiraUserOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,7 +77,7 @@ export default function ProfileSetupModal({ onSelectProfile }: ProfileSetupModal
     };
   }, [query]);
 
-  const colors = isLight ? LIGHT : DARK;
+  const colors = COLORS;
   const canSubmit = Boolean(selectedUser?.displayName);
   const showEmpty = useMemo(() => !loading && !error && query.trim().length > 0 && users.length === 0, [error, loading, query, users.length]);
 

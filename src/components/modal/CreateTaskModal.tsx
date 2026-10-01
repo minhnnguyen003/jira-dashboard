@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n';
+import { useIsLightTheme } from '@/lib/theme';
+import { MODAL_COLORS } from '@/lib/palette';
 
 interface Project { key: string; name: string; }
 interface User { name: string; displayName: string; }
@@ -33,29 +35,7 @@ const issueTypeOptions = ['Task', 'Story', 'Sub-task', 'Bug', 'Epic'] as const;
 const priorityOptions = ['Highest', 'High', 'Medium', 'Low', 'Lowest'] as const;
 const jiraBaseUrl = (process.env.NEXT_PUBLIC_JIRA_BASE_URL || '').replace(/\/+$/, '');
 
-const DARK = {
-  cardBg: 'rgba(20,22,40,0.92)',
-  backdropBlur: 'rgba(0,0,0,0.75)',
-  border: 'rgba(255,255,255,0.1)',
-  borderRow: 'rgba(255,255,255,0.08)',
-  textPrimary: '#e8eaf0',
-  textSecondary: '#9095a8',
-  textMuted: '#5a5f6e',
-  cardBgInner: 'rgba(20,22,40,0.4)',
-};
-
-const LIGHT = {
-  cardBg: 'rgba(255,255,255,0.95)',
-  backdropBlur: 'rgba(0,0,0,0.3)',
-  border: 'rgba(0,0,0,0.1)',
-  borderRow: 'rgba(0,0,0,0.06)',
-  textPrimary: '#1a1c28',
-  textSecondary: '#5a5f70',
-  textMuted: '#7a7f90',
-  cardBgInner: 'rgba(255,255,255,0.6)',
-};
-
-function FieldLabel({ label, c }: { label: string; c: typeof DARK }) {
+function FieldLabel({ label, c }: { label: string; c: typeof MODAL_COLORS }) {
   return (
     <div className="text-[11px] font-medium uppercase tracking-wider mb-1.5" style={{ color: c.textMuted }}>
       {label}
@@ -73,25 +53,15 @@ function createInitialFormState(now = new Date()): TaskForm {
   };
 }
 
-function subscribeToTheme(onStoreChange: () => void) {
-  const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  return () => observer.disconnect();
-}
-
-function getIsLightTheme() {
-  return document.documentElement.getAttribute('data-theme') === 'light';
-}
-
 function isAbortError(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
 }
 
 export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
-  const { t } = useLanguage();
-  const isLight = useSyncExternalStore(subscribeToTheme, getIsLightTheme, () => false);
+  const { t, language } = useLanguage();
+  const isLight = useIsLightTheme();
 
-  const c = isLight ? LIGHT : DARK;
+  const c = MODAL_COLORS;
 
   const [form, setForm] = useState<TaskForm>(() => createInitialFormState());
   const [loading, setLoading] = useState(false);
@@ -337,7 +307,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: c.borderRow, background: c.cardBg }}>
           <h2 className="text-base font-bold" style={{ color: c.textPrimary }}>{t('createTask.create')}</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-sm" style={{ color: c.textMuted, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(20,22,40,0.5)', cursor: 'pointer' }} title="Đóng (Esc)">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-sm" style={{ color: c.textMuted, background: 'var(--chip-bg)', cursor: 'pointer' }} title="Đóng (Esc)">✕</button>
         </div>
 
         {/* Scrollable body */}
@@ -664,7 +634,7 @@ export default function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
-              {isLight ? 'Cancel' : 'Hủy'}
+              {language === 'vi' ? 'Hủy' : 'Cancel'}
             </button>
             <button type="submit" disabled={loading} className="btn-primary px-6 py-2 text-sm">
               {loading ? (
