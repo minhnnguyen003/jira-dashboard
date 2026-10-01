@@ -7,7 +7,7 @@ Chọn ngôn ngữ / Choose your language:
 [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-minhnn03%2Fjira--dashboard-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/minhnn03/jira-dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Dashboard giám sát công việc Jira hiện đại, được xây dựng bằng Next.js, TypeScript và Chart.js.
@@ -36,7 +36,6 @@ Chọn ngôn ngữ / Choose your language:
    ```env
    JIRA_BASE_URL=https://your-domain.atlassian.net
    JIRA_BEARER_TOKEN=your-bearer-token-here
-   NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
    ```
 4. Khởi động server phát triển
    ```bash
@@ -66,38 +65,71 @@ JIRA_BEARER_TOKEN=your-bearer-token-here
 JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your-api-token-here
 
-# URL công khai cho link issues
-NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
 ```
 
 ## 🐳 Docker
 
-Dockerfile dùng multi-stage build với 4 stages: `base` → `deps` → `builder` → `runner`.
-Hỗ trợ 3 chế độ environment qua `--build-arg ENV_ENV`:
+Dockerfile dùng multi-stage build. Image không chứa file env: truyền env khi chạy container.
 
-| Mode | File env | Mục đích |
-|---|---|---|
-| `local` | `.env.local` | Build với env file embedded trong image |
-| `prod` | `.env.prod` | Build với prod env file embedded |
-| `runtime` | không có | Truyền env qua `-e` hoặc `docker-compose` |
+### Chạy từ Docker Hub
+
+Image: [minhnn03/jira-dashboard](https://hub.docker.com/r/minhnn03/jira-dashboard) (tag: `latest`, `1.15.11`)
+
+1. Tạo file env (image không chứa env)
+   ```bash
+   curl -o .env https://raw.githubusercontent.com/minhnnguyen003/jira-dashboard/main/.env.example
+   ```
+   Sau đó sửa file. Bắt buộc có: `JIRA_BASE_URL` và một trong hai: `JIRA_BEARER_TOKEN` hoặc `JIRA_EMAIL` + `JIRA_API_TOKEN`.
+2. Pull và chạy
+   ```bash
+   docker pull minhnn03/jira-dashboard:latest
+   docker run -d --name jira-dashboard -p 3000:3000 --env-file .env --restart unless-stopped minhnn03/jira-dashboard:latest
+   ```
+3. Mở http://localhost:3000
+
+Nên ghim version cụ thể khi chạy production: `minhnn03/jira-dashboard:1.15.11`.
+
+Dùng Docker Compose (lưu thành `docker-compose.yml` cạnh file `.env`):
+
+```yaml
+services:
+  jira-dashboard:
+    image: minhnn03/jira-dashboard:latest
+    ports:
+      - "3000:3000"
+    env_file: .env
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
+Cập nhật image mới:
+
+```bash
+docker compose pull && docker compose up -d
+# hoặc dùng docker thuần
+docker pull minhnn03/jira-dashboard:latest && docker rm -f jira-dashboard && docker run -d --name jira-dashboard -p 3000:3000 --env-file .env --restart unless-stopped minhnn03/jira-dashboard:latest
+```
 
 ### Build image
 
 ```bash
-# Build với local env
-docker build --build-arg ENV_ENV=local -t jira-dashboard:local .
+docker build -t jira-dashboard .
+```
 
-# Build với prod env
-docker build --build-arg ENV_ENV=prod -t jira-dashboard:prod .
+### Chạy bằng docker
 
-# Build không embed env
-docker build --build-arg ENV_ENV=runtime -t jira-dashboard:runtime .
+```bash
+docker run -d -p 3000:3000 --env-file .env.prod jira-dashboard
 ```
 
 ### Docker Compose
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build                        # dùng .env.local
+ENV_FILE=.env.prod HOST_PORT=3001 docker compose up -d
 ```
 
 ## 📁 Cấu trúc project

@@ -3,6 +3,7 @@
 import { MouseEvent, useState, useCallback } from 'react';
 import { DashboardIssue, JiraIssue } from '@/types/jira';
 import { useLanguage } from '@/lib/i18n';
+import { useRuntimeConfig } from '@/lib/runtimeConfig';
 import { STATUS_MAP, PRIORITY_MAP, NEUTRAL_BADGE } from '@/lib/palette';
 
 interface JiraTableProps {
@@ -65,7 +66,7 @@ const COLUMN_LABEL_KEYS: Record<SortField, Parameters<ReturnType<typeof useLangu
 
 export default function JiraTable({ data, onPageChange, initialVisibleColumns, columnLabels, onTaskClick, fullIssues }: JiraTableProps) {
   const { t } = useLanguage();
-  const baseUrl = process.env.NEXT_PUBLIC_JIRA_BASE_URL || 'https://your-domain.atlassian.net';
+  const baseUrl = useRuntimeConfig().jiraBaseUrl;
   const handleTaskClick = useCallback((key: string) => {
     if (onTaskClick && fullIssues?.[key]) {
       onTaskClick(fullIssues[key]);

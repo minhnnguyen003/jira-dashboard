@@ -1,43 +1,15 @@
+# Env is injected at run time, not baked into the image.
+#   docker compose up -d --build                      # uses .env.local
+#   ENV_FILE=.env.prod docker compose up -d --build   # uses .env.prod
+#   HOST_PORT=3001 ENV_FILE=.env.prod docker compose up -d
 services:
-  jira-dashboard-local:
-    image: jira-dashboard:local
+  jira-dashboard:
+    image: jira-dashboard
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        ENV_ENV: local
     ports:
-      - "3000:3000"
+      - "${HOST_PORT:-3000}:3000"
     env_file:
-      - .env.local
-    volumes:
-      - ./public:/app/public
-    restart: unless-stopped
-
-  jira-dashboard-prod:
-    image: jira-dashboard:prod
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        ENV_ENV: prod
-    ports:
-      - "3001:3000"
-    env_file:
-      - .env.prod
-    restart: unless-stopped
-
-  jira-dashboard-runtime:
-    image: jira-dashboard:runtime
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        ENV_ENV: runtime
-    ports:
-      - "3002:3000"
-    environment:
-      - JIRA_BASE_URL=https://your-domain.atlassian.net
-      - JIRA_BEARER_TOKEN=your-bearer-token-here
-      - NEXT_PUBLIC_JIRA_BASE_URL=https://your-domain.atlassian.net
+      - ${ENV_FILE:-.env.local}
     restart: unless-stopped

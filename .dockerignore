@@ -3,7 +3,8 @@ node_modules
 .git
 .planning
 .kilo
-.env.*.example
+.env
+.env.*
 *.md
 README.md
 .vscode
